@@ -2,8 +2,10 @@
 #define DEVICE_API_H_
 
 #include "array.h"
+#include "window.h"
 
 #include <vulkan/vulkan.h>
+#include <vulkan/vulkan_core.h>
 
 typedef struct {
     uint32_t graphics;
@@ -30,7 +32,8 @@ void retrieveQueue(Device *device, uint32_t familyIndex, VkQueue *queue);
 
 #pragma region API
 
-
+VkResult createSwapChain(Device *device, Window *window, VkSurfaceKHR surface, VkSwapchainKHR *swapchain);
+void destroySwapChain(Device *device, VkSwapchainKHR swapchain);
 
 #pragma endregion
 

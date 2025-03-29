@@ -19,6 +19,8 @@ typedef struct {
 
     VkQueue graphicsQueue;
     VkQueue presentQueue;
+
+    VkSwapchainKHR swapchain;
 } VulkanState;
 
 VulkanState initVulkanState(Window *window, VkBool32 debugging);
@@ -74,6 +76,8 @@ VulkanState initVulkanState(Window *window, VkBool32 debugging) {
     StringArray deviceExtensions = createStringArray(1000);
     StringArray deviceLayers = createStringArray(1000);
 
+    addStringToArray(&deviceExtensions, VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+
     if(debugging) {
         addStringToArray(&deviceLayers, "VK_LAYER_KHRONOS_validation");
     }
@@ -99,10 +103,17 @@ VulkanState initVulkanState(Window *window, VkBool32 debugging) {
     retrieveQueue(&state.device, state.device.queueFamilies.graphics, &state.graphicsQueue);
     retrieveQueue(&state.device, state.device.queueFamilies.present, &state.presentQueue);
 
+    result = createSwapChain(&state.device, window, state.surface, &state.swapchain);
+    if(result != VK_SUCCESS) {
+        fprintf(stderr, "Failed to create swapchain: %s.\n", string_VkResult(result));
+        exit(1);
+    }
+
     return state;
 }
 
 void destroyVulkanState(VulkanState *vulkanState) {
+    destroySwapChain(&vulkanState->device, vulkanState->swapchain);
     destroyDevice(&vulkanState->device);
 
     if(vulkanState->debugMessenger != VK_NULL_HANDLE) {
