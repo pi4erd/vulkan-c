@@ -14,6 +14,11 @@ typedef struct {
     GLFWwindow *window;
 } Window;
 
+typedef struct {
+    VkDevice device;
+    VkPhysicalDevice physicalDevice;
+} Device;
+
 VkBool32 debugMessengerCallback(
     VkDebugUtilsMessageSeverityFlagsEXT severity,
     VkDebugUtilsMessageTypeFlagsEXT type,
@@ -24,9 +29,11 @@ VkBool32 debugMessengerCallback(
 VkResult createInstance(StringArray extensions, StringArray layers, VkInstance *instance);
 VkResult createSurface(Window *window, VkInstance instance, VkSurfaceKHR *surface);
 VkResult createDebugMessenger(VkInstance instance, PFN_vkDebugUtilsMessengerCallbackEXT callback, VkDebugUtilsMessengerEXT *debugMessenger);
+VkResult createDevice(VkInstance instance, VkPhysicalDeviceFeatures features, StringArray extensions, Device *device);
 void destroyDebugMessenger(VkInstance instance, VkDebugUtilsMessengerEXT messenger);
 void destroySurface(VkInstance instance, VkSurfaceKHR surface);
 void destroyInstance(VkInstance instance);
+void destroyDevice(Device *device);
 
 Window createWindow(void);
 int windowShouldClose(Window *window);

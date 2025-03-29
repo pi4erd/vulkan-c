@@ -14,6 +14,7 @@ typedef struct {
     VkSurfaceKHR surface;
 
     VkDebugUtilsMessengerEXT debugMessenger;
+    Device device;
 } VulkanState;
 
 VulkanState initVulkanState(Window *window, VkBool32 debugging);
@@ -40,38 +41,55 @@ VulkanState initVulkanState(Window *window, VkBool32 debugging) {
         addStringToArray(&extensions, VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
     }
 
-    VkResult result = createInstance(extensions, layers, &state.instance);
+    VkResult result;
+    result = createInstance(extensions, layers, &state.instance);
+
+    destroyStringArray(&extensions);
+    destroyStringArray(&layers);
+
     if(result != VK_SUCCESS) {
         fprintf(stderr, "Failed to create instance: %s.\n", string_VkResult(result));
         exit(1);
     }
 
-    destroyStringArray(&extensions);
-    destroyStringArray(&layers);
-
     if(debugging) {
-        VkResult debugResult = createDebugMessenger(state.instance, debugMessengerCallback, &state.debugMessenger);
-        if(debugResult != VK_SUCCESS) {
+        result = createDebugMessenger(state.instance, debugMessengerCallback, &state.debugMessenger);
+        if(result != VK_SUCCESS) {
             fprintf(stderr, "Failed to create debug messenger: %s.\n",
-                string_VkResult(debugResult));
+                string_VkResult(result));
+            exit(1);
         }
     }
 
-    VkResult surfaceResult = createSurface(window, state.instance, &state.surface);
-    if(surfaceResult != VK_SUCCESS) {
-        fprintf(stderr, "Failed to create surface: %s.\n", string_VkResult(surfaceResult));
+    result = createSurface(window, state.instance, &state.surface);
+    if(result != VK_SUCCESS) {
+        fprintf(stderr, "Failed to create surface: %s.\n", string_VkResult(result));
+        exit(1);
+    }
+
+    StringArray deviceExtensions = createStringArray(1000);
+
+    VkPhysicalDeviceFeatures features = {0};
+
+    result = createDevice(state.instance, features, deviceExtensions, &state.device);
+    destroyStringArray(&deviceExtensions);
+
+    if(result != VK_SUCCESS) {
+        fprintf(stderr, "Failed to create device: %s.\n", string_VkResult(result));
+        exit(1);
     }
 
     return state;
 }
 
 void destroyVulkanState(VulkanState *vulkanState) {
+    destroyDevice(&vulkanState->device);
+
     if(vulkanState->debugMessenger != VK_NULL_HANDLE) {
         destroyDebugMessenger(vulkanState->instance, vulkanState->debugMessenger);
     }
 
     destroySurface(vulkanState->instance, vulkanState->surface);
-    
     destroyInstance(vulkanState->instance);
 }
 

@@ -1,4 +1,5 @@
 #include "engine.h"
+#include "array.h"
 
 #include <GLFW/glfw3.h>
 #include <string.h>
@@ -12,6 +13,7 @@
 /// Checks if instance extensions are available
 VkBool32 checkInstanceExtensions(StringArray extensions);
 VkBool32 checkInstanceLayers(StringArray layers);
+VkResult pickPhysicalDevice(VkInstance instance, VkPhysicalDeviceFeatures *features, StringArray extensions, VkPhysicalDevice *physicalDevice);
 
 VkBool32 debugMessengerCallback(
     VkDebugUtilsMessageSeverityFlagsEXT severity,
@@ -21,7 +23,7 @@ VkBool32 debugMessengerCallback(
 ) {
     (void)userData;
 
-    fprintf(stderr, "Type: %s Severity: %s. Message:\n%s\n",
+    fprintf(stderr, "Severity: %s Type: %s. Message:\n%s\n",
         string_VkDebugUtilsMessageSeverityFlagBitsEXT(severity),
         string_VkDebugUtilsMessageTypeFlagBitsEXT(type),
         data->pMessage
@@ -77,6 +79,29 @@ VkResult createDebugMessenger(VkInstance instance, PFN_vkDebugUtilsMessengerCall
     return VK_INSTANCE_FUNC(vkCreateDebugUtilsMessengerEXT, instance)(instance, &createInfo, NULL, debugMessenger);
 }
 
+VkResult createDevice(VkInstance instance, VkPhysicalDeviceFeatures features, StringArray extensions, Device *device) {
+    pickPhysicalDevice(instance, &features, extensions, &device->physicalDevice);
+    
+    VkDeviceQueueCreateInfo queueCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+        .pQueuePriorities = (const float[]){0.0},
+        .queueFamilyIndex = 0,
+        .queueCount = 1,
+    };
+
+    VkDeviceCreateInfo createInfo = {
+        .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+        .ppEnabledExtensionNames = extensions.elements,
+        .enabledExtensionCount = extensions.elementCount,
+        .enabledLayerCount = 0,
+        .pQueueCreateInfos = &queueCreateInfo,
+        .queueCreateInfoCount = 1,
+        .pEnabledFeatures = &features
+    };
+
+    return vkCreateDevice(device->physicalDevice, &createInfo, NULL, &device->device);
+}
+
 void destroyDebugMessenger(VkInstance instance, VkDebugUtilsMessengerEXT messenger) {
     VK_INSTANCE_FUNC(vkDestroyDebugUtilsMessengerEXT, instance)(instance, messenger, NULL);
 }
@@ -87,6 +112,10 @@ void destroySurface(VkInstance instance, VkSurfaceKHR surface) {
 
 void destroyInstance(VkInstance instance) {
     vkDestroyInstance(instance, NULL);
+}
+
+void destroyDevice(Device *device) {
+    vkDestroyDevice(device->device, NULL);
 }
 
 Window createWindow(void) {
@@ -117,9 +146,18 @@ void destroyWindow(Window *window) {
 
 VkBool32 checkInstanceExtensions(StringArray extensions) {
     uint32_t extensionCount;
-    vkEnumerateInstanceExtensionProperties(NULL, &extensionCount, NULL);
+    uint32_t result;
+
+    result = vkEnumerateInstanceExtensionProperties(NULL, &extensionCount, NULL);
+    if(result != VK_SUCCESS) return result;
+
     VkExtensionProperties *properties = (VkExtensionProperties*)calloc(extensionCount, sizeof(VkExtensionProperties));
-    vkEnumerateInstanceExtensionProperties(NULL, &extensionCount, properties);
+
+    result = vkEnumerateInstanceExtensionProperties(NULL, &extensionCount, properties);
+    if(result != VK_SUCCESS) {
+        free(properties);
+        return result;
+    }
 
     VkBool32 allFound = VK_TRUE;
     for(size_t i = 0; i < extensions.elementCount; i++) {
@@ -137,14 +175,25 @@ VkBool32 checkInstanceExtensions(StringArray extensions) {
         }
     }
 
+    free(properties);
+
     return allFound;
 }
 
 VkBool32 checkInstanceLayers(StringArray layers) {
     uint32_t layerCount;
-    vkEnumerateInstanceLayerProperties(&layerCount, NULL);
+    uint32_t result;
+
+    result = vkEnumerateInstanceExtensionProperties(NULL, &layerCount, NULL);
+    if(result != VK_SUCCESS) return result;
+
     VkLayerProperties *properties = (VkLayerProperties*)calloc(layerCount, sizeof(VkLayerProperties));
-    vkEnumerateInstanceLayerProperties(&layerCount, properties);
+
+    result = vkEnumerateInstanceLayerProperties(&layerCount, properties);
+    if(result != VK_SUCCESS) {
+        free(properties);
+        return result;
+    }
 
     VkBool32 allFound = VK_TRUE;
     for(size_t i = 0; i < layers.elementCount; i++) {
@@ -162,5 +211,73 @@ VkBool32 checkInstanceLayers(StringArray layers) {
         }
     }
 
+    free(properties);
+
     return allFound;
+}
+
+VkResult pickPhysicalDevice(VkInstance instance, VkPhysicalDeviceFeatures *requiredFeatures, StringArray requiredExtensions, VkPhysicalDevice *physicalDevice) {
+    uint32_t deviceCount;
+    uint32_t result;
+    
+    result = vkEnumeratePhysicalDevices(instance, &deviceCount, NULL);
+    if(result != VK_SUCCESS) {
+        return result;
+    }
+    
+    VkPhysicalDevice *devices = (VkPhysicalDevice*)calloc(deviceCount, sizeof(VkPhysicalDevice));
+
+    result = vkEnumeratePhysicalDevices(instance, &deviceCount, devices);
+    if(result != VK_SUCCESS) {
+        fprintf(stderr, "Failed to enumerate physical devices: %s\n", string_VkResult(result));
+        free(devices);
+        return result;
+    }
+
+    for(uint32_t i = 0; i < deviceCount; i++) {
+        VkPhysicalDevice device = devices[i];
+
+        VkPhysicalDeviceProperties properties;
+        VkPhysicalDeviceFeatures features;
+        vkGetPhysicalDeviceProperties(device, &properties);
+        vkGetPhysicalDeviceFeatures(device, &features);
+
+        // TODO: Check features present
+        (void)requiredFeatures;
+
+        uint32_t extensionCount;
+        vkEnumerateDeviceExtensionProperties(device, NULL, &extensionCount, NULL);
+        VkExtensionProperties *extensions = (VkExtensionProperties*)calloc(extensionCount, sizeof(VkExtensionProperties));
+        vkEnumerateDeviceExtensionProperties(device, NULL, &extensionCount, extensions);
+
+        VkBool32 deviceSuitable = VK_TRUE;
+
+        for(size_t j = 0; j < requiredExtensions.elementCount; j++) {
+            VkBool32 found = VK_FALSE;
+            for(uint32_t k = 0; k < extensionCount; k++) {
+                if(strcmp(requiredExtensions.elements[j], extensions[k].extensionName)) {
+                    found = VK_TRUE;
+                    break;
+                }
+            }
+
+            if(!found) {
+                fprintf(stderr, "No extension present in device '%s': %s\n",
+                    properties.deviceName, requiredExtensions.elements[j]);
+                deviceSuitable = VK_FALSE;
+            }
+        }
+
+        free(extensions);
+
+        if(deviceSuitable) {
+            *physicalDevice = device;
+            fprintf(stderr, "Chosen device '%s'\n", properties.deviceName);
+            break;
+        }
+    }
+
+    free(devices);
+
+    return VK_SUCCESS;
 }
