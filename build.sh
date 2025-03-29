@@ -8,7 +8,7 @@ BUILDDIR=build
 SRCDIR=src
 TARGET=$BUILDDIR/vulkan-c
 
-FILES="$SRCDIR/main.c $SRCDIR/engine.c $SRCDIR/array.c"
+FILES="$SRCDIR/main.c $SRCDIR/engine.c $SRCDIR/array.c $SRCDIR/device_api.c"
 
 COMMAND="$CC $CFLAGS $LDFLAGS -o $TARGET $FILES"
 

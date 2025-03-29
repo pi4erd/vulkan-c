@@ -7,6 +7,7 @@
 #include <vulkan/vk_enum_string_helper.h>
 
 #include "array.h"
+#include "device_api.h"
 #include "engine.h"
 
 typedef struct {
@@ -15,6 +16,9 @@ typedef struct {
 
     VkDebugUtilsMessengerEXT debugMessenger;
     Device device;
+
+    VkQueue graphicsQueue;
+    VkQueue presentQueue;
 } VulkanState;
 
 VulkanState initVulkanState(Window *window, VkBool32 debugging);
@@ -68,16 +72,32 @@ VulkanState initVulkanState(Window *window, VkBool32 debugging) {
     }
 
     StringArray deviceExtensions = createStringArray(1000);
+    StringArray deviceLayers = createStringArray(1000);
+
+    if(debugging) {
+        addStringToArray(&deviceLayers, "VK_LAYER_KHRONOS_validation");
+    }
 
     VkPhysicalDeviceFeatures features = {0};
 
-    result = createDevice(state.instance, features, deviceExtensions, &state.device);
+    result = createDevice(
+        state.instance,
+        state.surface,
+        &features,
+        deviceLayers,
+        deviceExtensions,
+        &state.device
+    );
     destroyStringArray(&deviceExtensions);
+    destroyStringArray(&deviceLayers);
 
     if(result != VK_SUCCESS) {
         fprintf(stderr, "Failed to create device: %s.\n", string_VkResult(result));
         exit(1);
     }
+
+    retrieveQueue(&state.device, state.device.queueFamilies.graphics, &state.graphicsQueue);
+    retrieveQueue(&state.device, state.device.queueFamilies.present, &state.presentQueue);
 
     return state;
 }

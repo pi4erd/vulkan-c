@@ -13,7 +13,6 @@
 /// Checks if instance extensions are available
 VkBool32 checkInstanceExtensions(StringArray extensions);
 VkBool32 checkInstanceLayers(StringArray layers);
-VkResult pickPhysicalDevice(VkInstance instance, VkPhysicalDeviceFeatures *features, StringArray extensions, VkPhysicalDevice *physicalDevice);
 
 VkBool32 debugMessengerCallback(
     VkDebugUtilsMessageSeverityFlagsEXT severity,
@@ -79,29 +78,6 @@ VkResult createDebugMessenger(VkInstance instance, PFN_vkDebugUtilsMessengerCall
     return VK_INSTANCE_FUNC(vkCreateDebugUtilsMessengerEXT, instance)(instance, &createInfo, NULL, debugMessenger);
 }
 
-VkResult createDevice(VkInstance instance, VkPhysicalDeviceFeatures features, StringArray extensions, Device *device) {
-    pickPhysicalDevice(instance, &features, extensions, &device->physicalDevice);
-    
-    VkDeviceQueueCreateInfo queueCreateInfo = {
-        .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-        .pQueuePriorities = (const float[]){0.0},
-        .queueFamilyIndex = 0,
-        .queueCount = 1,
-    };
-
-    VkDeviceCreateInfo createInfo = {
-        .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-        .ppEnabledExtensionNames = extensions.elements,
-        .enabledExtensionCount = extensions.elementCount,
-        .enabledLayerCount = 0,
-        .pQueueCreateInfos = &queueCreateInfo,
-        .queueCreateInfoCount = 1,
-        .pEnabledFeatures = &features
-    };
-
-    return vkCreateDevice(device->physicalDevice, &createInfo, NULL, &device->device);
-}
-
 void destroyDebugMessenger(VkInstance instance, VkDebugUtilsMessengerEXT messenger) {
     VK_INSTANCE_FUNC(vkDestroyDebugUtilsMessengerEXT, instance)(instance, messenger, NULL);
 }
@@ -112,10 +88,6 @@ void destroySurface(VkInstance instance, VkSurfaceKHR surface) {
 
 void destroyInstance(VkInstance instance) {
     vkDestroyInstance(instance, NULL);
-}
-
-void destroyDevice(Device *device) {
-    vkDestroyDevice(device->device, NULL);
 }
 
 Window createWindow(void) {
@@ -216,104 +188,3 @@ VkBool32 checkInstanceLayers(StringArray layers) {
     return allFound;
 }
 
-VkResult pickPhysicalDevice(VkInstance instance, VkPhysicalDeviceFeatures *requiredFeatures, StringArray requiredExtensions, VkPhysicalDevice *physicalDevice) {
-    uint32_t highscore = 0;
-    VkPhysicalDevice bestDevice;
-    VkPhysicalDeviceProperties bestProperties;
-
-    uint32_t deviceCount;
-    uint32_t result;
-    
-    result = vkEnumeratePhysicalDevices(instance, &deviceCount, NULL);
-    if(result != VK_SUCCESS) {
-        return result;
-    }
-    
-    VkPhysicalDevice *devices = (VkPhysicalDevice*)calloc(deviceCount, sizeof(VkPhysicalDevice));
-
-    result = vkEnumeratePhysicalDevices(instance, &deviceCount, devices);
-    if(result != VK_SUCCESS) {
-        fprintf(stderr, "Failed to enumerate physical devices: %s\n", string_VkResult(result));
-        free(devices);
-        return result;
-    }
-
-    for(uint32_t i = 0; i < deviceCount; i++) {
-        VkPhysicalDevice device = devices[i];
-
-        VkPhysicalDeviceProperties properties;
-        VkPhysicalDeviceFeatures features;
-        vkGetPhysicalDeviceProperties(device, &properties);
-        vkGetPhysicalDeviceFeatures(device, &features);
-
-        // TODO: Check features present
-        (void)requiredFeatures;
-
-        uint32_t extensionCount;
-        vkEnumerateDeviceExtensionProperties(device, NULL, &extensionCount, NULL);
-        VkExtensionProperties *extensions = (VkExtensionProperties*)calloc(extensionCount, sizeof(VkExtensionProperties));
-        vkEnumerateDeviceExtensionProperties(device, NULL, &extensionCount, extensions);
-
-        VkBool32 deviceSuitable = VK_TRUE;
-
-        for(size_t j = 0; j < requiredExtensions.elementCount; j++) {
-            VkBool32 found = VK_FALSE;
-            for(uint32_t k = 0; k < extensionCount; k++) {
-                if(strcmp(requiredExtensions.elements[j], extensions[k].extensionName)) {
-                    found = VK_TRUE;
-                    break;
-                }
-            }
-
-            if(!found) {
-                fprintf(stderr, "No extension present in device '%s': %s\n",
-                    properties.deviceName, requiredExtensions.elements[j]);
-                deviceSuitable = VK_FALSE;
-            }
-        }
-
-        free(extensions);
-
-        uint32_t score = 0;
-        switch(properties.deviceType) {
-            case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU:
-            score += 5;
-            break;
-            case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU:
-            score += 4;
-            break;
-            case VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU:
-            score += 3;
-            break;
-            case VK_PHYSICAL_DEVICE_TYPE_CPU:
-            score += 2;
-            break;
-            case VK_PHYSICAL_DEVICE_TYPE_OTHER:
-            score += 1;
-            break;
-            default:
-            break;
-        }
-
-        if(deviceSuitable) {
-            if(highscore < score) {
-                bestDevice = device;
-                bestProperties = properties;
-                highscore = score;
-            }
-        }
-    }
-
-    if(highscore != 0) {
-        fprintf(stderr, "Chosen device %s\n", bestProperties.deviceName);
-        *physicalDevice = bestDevice;
-    } else {
-        fprintf(stderr, "No device chosen.\n");
-        free(devices);
-        return VK_ERROR_UNKNOWN;
-    }
-
-    free(devices);
-
-    return VK_SUCCESS;
-}

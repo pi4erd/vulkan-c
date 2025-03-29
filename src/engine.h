@@ -5,6 +5,7 @@
 #include <vulkan/vulkan_core.h>
 #include <GLFW/glfw3.h>
 
+#include "device_api.h"
 #include "array.h"
 
 #define MAKE_VERSION(major, minor, patch) VK_VERSION_MAJOR(major) | VK_VERSION_MINOR(minor) | VK_VERSION_PATCH(patch)
@@ -13,11 +14,6 @@
 typedef struct {
     GLFWwindow *window;
 } Window;
-
-typedef struct {
-    VkDevice device;
-    VkPhysicalDevice physicalDevice;
-} Device;
 
 VkBool32 debugMessengerCallback(
     VkDebugUtilsMessageSeverityFlagsEXT severity,
@@ -28,12 +24,14 @@ VkBool32 debugMessengerCallback(
 
 VkResult createInstance(StringArray extensions, StringArray layers, VkInstance *instance);
 VkResult createSurface(Window *window, VkInstance instance, VkSurfaceKHR *surface);
-VkResult createDebugMessenger(VkInstance instance, PFN_vkDebugUtilsMessengerCallbackEXT callback, VkDebugUtilsMessengerEXT *debugMessenger);
-VkResult createDevice(VkInstance instance, VkPhysicalDeviceFeatures features, StringArray extensions, Device *device);
+VkResult createDebugMessenger(
+    VkInstance instance,
+    PFN_vkDebugUtilsMessengerCallbackEXT callback,
+    VkDebugUtilsMessengerEXT *debugMessenger
+);
 void destroyDebugMessenger(VkInstance instance, VkDebugUtilsMessengerEXT messenger);
 void destroySurface(VkInstance instance, VkSurfaceKHR surface);
 void destroyInstance(VkInstance instance);
-void destroyDevice(Device *device);
 
 Window createWindow(void);
 int windowShouldClose(Window *window);
