@@ -217,6 +217,10 @@ VkBool32 checkInstanceLayers(StringArray layers) {
 }
 
 VkResult pickPhysicalDevice(VkInstance instance, VkPhysicalDeviceFeatures *requiredFeatures, StringArray requiredExtensions, VkPhysicalDevice *physicalDevice) {
+    uint32_t highscore = 0;
+    VkPhysicalDevice bestDevice;
+    VkPhysicalDeviceProperties bestProperties;
+
     uint32_t deviceCount;
     uint32_t result;
     
@@ -270,11 +274,43 @@ VkResult pickPhysicalDevice(VkInstance instance, VkPhysicalDeviceFeatures *requi
 
         free(extensions);
 
-        if(deviceSuitable) {
-            *physicalDevice = device;
-            fprintf(stderr, "Chosen device '%s'\n", properties.deviceName);
+        uint32_t score = 0;
+        switch(properties.deviceType) {
+            case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU:
+            score += 5;
+            break;
+            case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU:
+            score += 4;
+            break;
+            case VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU:
+            score += 3;
+            break;
+            case VK_PHYSICAL_DEVICE_TYPE_CPU:
+            score += 2;
+            break;
+            case VK_PHYSICAL_DEVICE_TYPE_OTHER:
+            score += 1;
+            break;
+            default:
             break;
         }
+
+        if(deviceSuitable) {
+            if(highscore < score) {
+                bestDevice = device;
+                bestProperties = properties;
+                highscore = score;
+            }
+        }
+    }
+
+    if(highscore != 0) {
+        fprintf(stderr, "Chosen device %s\n", bestProperties.deviceName);
+        *physicalDevice = bestDevice;
+    } else {
+        fprintf(stderr, "No device chosen.\n");
+        free(devices);
+        return VK_ERROR_UNKNOWN;
     }
 
     free(devices);
