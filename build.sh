@@ -9,9 +9,11 @@ BUILDDIR=build
 SRCDIR=src
 TARGET=$BUILDDIR/vulkan-c
 
-FILES="$SRCDIR/main.c $SRCDIR/engine.c $SRCDIR/array.c $SRCDIR/device_api.c $SRCDIR/window.c"
+FILES=(
+    main.c engine.c array.c device_api.c 
+    device_utils.c window.c swapchain.c app.c
+)
 
-FILES=(main.c engine.c array.c device_api.c device_utils.c window.c swapchain.c)
 OBJFILES=${FILES[@]/#/$BUILDDIR\/}
 OBJFILES=${OBJFILES//.c/.o}
 
