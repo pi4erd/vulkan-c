@@ -148,6 +148,23 @@ void destroySwapChain(Device *device, VkSwapchainKHR swapchain) {
     vkDestroySwapchainKHR(device->device, swapchain, NULL);
 }
 
+VkResult acquireSwapChainImages(Device *device, VkSwapchainKHR swapchain, uint32_t *imageCount, VkImage **images) {
+    VkResult result;
+    result = vkGetSwapchainImagesKHR(device->device, swapchain, imageCount, NULL);
+    if(result != VK_SUCCESS) {
+        fprintf(stderr, "Failed to get swapchain image count.\n");
+        return result;
+    }
+    *images = (VkImage*)calloc(*imageCount, sizeof(VkImage));
+    result = vkGetSwapchainImagesKHR(device->device, swapchain, imageCount, *images);
+    if(result != VK_SUCCESS) {
+        fprintf(stderr, "Failed to acquire swapchain images.\n");
+        return result;
+    }
+
+    return VK_SUCCESS;
+}
+
 VkBool32 getQueueFamilies(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface, QueueFamilyIndices *queueFamilies) {
     VkBool32 graphicsFound = VK_FALSE, presentFound = VK_FALSE;
     uint32_t graphics, present;

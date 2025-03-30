@@ -21,6 +21,8 @@ typedef struct {
     VkQueue presentQueue;
 
     VkSwapchainKHR swapchain;
+    uint32_t swapchainImageCount;
+    VkImage *swapchainImages;
 } VulkanState;
 
 VulkanState initVulkanState(Window *window, VkBool32 debugging);
@@ -109,10 +111,18 @@ VulkanState initVulkanState(Window *window, VkBool32 debugging) {
         exit(1);
     }
 
+    result = acquireSwapChainImages(&state.device, state.swapchain, &state.swapchainImageCount, &state.swapchainImages);
+    if(result != VK_SUCCESS) {
+        fprintf(stderr, "Failed to acquire swapchain images: %s\n", string_VkResult(result));
+        exit(1);
+    }
+
     return state;
 }
 
 void destroyVulkanState(VulkanState *vulkanState) {
+    free(vulkanState->swapchainImages);
+
     destroySwapChain(&vulkanState->device, vulkanState->swapchain);
     destroyDevice(&vulkanState->device);
 

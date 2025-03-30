@@ -34,6 +34,7 @@ void retrieveQueue(Device *device, uint32_t familyIndex, VkQueue *queue);
 
 VkResult createSwapChain(Device *device, Window *window, VkSurfaceKHR surface, VkSwapchainKHR *swapchain);
 void destroySwapChain(Device *device, VkSwapchainKHR swapchain);
+VkResult acquireSwapChainImages(Device *device, VkSwapchainKHR swapchain, uint32_t *imageCount, VkImage **images);
 
 #pragma endregion
 
