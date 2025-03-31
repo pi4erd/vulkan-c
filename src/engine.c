@@ -22,17 +22,61 @@ VkBool32 debugMessengerCallback(
 ) {
     (void)userData;
 
-    fprintf(stderr, "Severity: %s Type: %s. Message:\n%s\n",
-        string_VkDebugUtilsMessageSeverityFlagBitsEXT(severity),
-        string_VkDebugUtilsMessageTypeFlagBitsEXT(type),
+    const char *severityStr, *typeStr;
+
+    switch(severity) {
+        case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:
+        severityStr = " ERROR ";
+        break;
+        case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT:
+        severityStr = "WARNING";
+        break;
+        case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:
+        severityStr = " INFO  ";
+        break;
+        case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT:
+        severityStr = "VERBOSE";
+        break;
+        default:
+        severityStr = "UNKNOWN";
+        break;
+    }
+
+    switch(type) {
+        case VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT:
+        typeStr = "  GENERAL  ";
+        break;
+        case VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT:
+        typeStr = "PERFORMANCE";
+        break;
+        case VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT:
+        typeStr = "VALIDATION ";
+        break;
+        case VK_DEBUG_UTILS_MESSAGE_TYPE_DEVICE_ADDRESS_BINDING_BIT_EXT:
+        typeStr = "    DAB    ";
+        break;
+        default:
+        typeStr = "  UNKNOWN  ";
+        break;
+    }
+
+    fprintf(stderr, "%s (%s): %s\n",
+        severityStr,
+        typeStr,
         data->pMessage
     );
 
     return VK_FALSE;
 }
 
-VkResult createInstance(StringArray extensions, StringArray layers, VkInstance *instance) {
-    if(!checkInstanceLayers(layers) || !checkInstanceExtensions(extensions)) {
+VkResult createInstance(StringArray extensions, StringArray layers, VkBool32 portability, VkInstance *instance) {
+    if(portability) {
+        addStringToArray(&extensions, VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
+    }
+
+    if(!checkInstanceLayers(layers)) {
+        return VK_ERROR_LAYER_NOT_PRESENT;
+    } else if(!checkInstanceExtensions(extensions)) {
         return VK_ERROR_EXTENSION_NOT_PRESENT;
     }
 
@@ -40,7 +84,7 @@ VkResult createInstance(StringArray extensions, StringArray layers, VkInstance *
         .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
         .pApplicationName = "vulkan app",
         .applicationVersion = VK_MAKE_API_VERSION(0, 0, 0, 0),
-        .apiVersion = VK_MAKE_API_VERSION(0, 1, 3, 0),
+        .apiVersion = VK_MAKE_API_VERSION(0, 1, 2, 0),
         .pEngineName = "No Engine",
         .engineVersion = VK_MAKE_API_VERSION(0, 0, 1, 0),
     };
@@ -52,6 +96,7 @@ VkResult createInstance(StringArray extensions, StringArray layers, VkInstance *
         .enabledExtensionCount = extensions.elementCount,
         .ppEnabledLayerNames = layers.elements,
         .enabledLayerCount = layers.elementCount,
+        .flags = portability ? VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR : 0,
     };
 
     return vkCreateInstance(&instanceInfo, NULL, instance);

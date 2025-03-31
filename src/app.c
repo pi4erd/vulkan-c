@@ -23,6 +23,8 @@ typedef struct VKSTATE {
     VkPipelineLayout layout;
     VkRenderPass renderPass;
     VkPipeline graphicsPipeline;
+
+    VkBool32 portability;
 } VulkanState;
 
 void CreateGraphicsPipeline(VulkanState *state);
@@ -45,7 +47,18 @@ VulkanState *initVulkanState(Window *window, VkBool32 debugging) {
     }
 
     VkResult result;
-    result = createInstance(extensions, layers, &state->instance);
+    VkBool32 portability;
+
+#ifdef __MACH__
+    portability = VK_TRUE;
+    addStringToArray(&extensions, "VK_EXT_metal_surface");
+#else
+    portability = VK_FALSE;
+#endif
+
+    state->portability = portability;
+
+    result = createInstance(extensions, layers, portability, &state->instance);
 
     destroyStringArray(&extensions);
     destroyStringArray(&layers);
@@ -73,6 +86,9 @@ VulkanState *initVulkanState(Window *window, VkBool32 debugging) {
     StringArray deviceExtensions = createStringArray(1000);
     StringArray deviceLayers = createStringArray(1000);
 
+    if(portability) {
+        addStringToArray(&deviceExtensions, "VK_KHR_portability_subset");
+    }
     addStringToArray(&deviceExtensions, VK_KHR_SWAPCHAIN_EXTENSION_NAME);
 
     if(debugging) {

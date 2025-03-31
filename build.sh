@@ -18,9 +18,14 @@ export RESSHADER=$RESOURCEDIR/shader
 
 mkdir -p $BUILDDIR $BINDIR $OBJDIR $SHADERBIN
 
-# Main project
+# Main project settings
 CFLAGS="-std=c17 -I$RESINCLUDE -Wall -Wextra -Wpedantic"
 LDFLAGS="-lc -lvulkan -lglfw"
+
+if [[ -nz "${MACOS}" ]]; then
+    CFLAGS+=" -I/opt/homebrew/include -I/usr/local/include"
+    LDFLAGS+=" -L/opt/homebrew/lib -rpath /usr/local/lib"
+fi
 
 # Build auxilary projects
 (cd embedder; ./build.sh)

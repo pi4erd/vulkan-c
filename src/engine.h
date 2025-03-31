@@ -17,7 +17,12 @@ VkBool32 debugMessengerCallback(
     void *userData
 );
 
-VkResult createInstance(StringArray extensions, StringArray layers, VkInstance *instance);
+VkResult createInstance(
+    StringArray extensions,
+    StringArray layers,
+    VkBool32 portability,
+    VkInstance *instance
+);
 VkResult createSurface(Window *window, VkInstance instance, VkSurfaceKHR *surface);
 VkResult createDebugMessenger(
     VkInstance instance,
