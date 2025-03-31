@@ -4,6 +4,7 @@
 #include <GLFW/glfw3.h>
 #include <vulkan/vk_enum_string_helper.h>
 
+#include <assert.h>
 #include <stdio.h>
 #include <limits.h>
 #include <stdlib.h>
@@ -76,6 +77,18 @@ void destroyDevice(Device *device) {
 }
 
 
+VkResult waitForFence(Device *device, VkFence fence, uint64_t timeout) {
+    return vkWaitForFences(device->device, 1, &fence, VK_TRUE, timeout);
+}
+
+VkResult resetFence(Device *device, VkFence fence) {
+    return vkResetFences(device->device, 1, &fence);
+}
+
+VkResult waitIdle(Device *device) {
+    return vkDeviceWaitIdle(device->device);
+}
+
 VkResult createShaderModule(Device *device, const uint32_t *code, size_t codeSize, VkShaderModule *module) {
     VkShaderModuleCreateInfo createInfo = {
         .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
@@ -112,6 +125,110 @@ VkResult createGraphicsPipeline(Device *device, VkGraphicsPipelineCreateInfo *in
 
 void destroyPipeline(Device *device, VkPipeline pipeline) {
     vkDestroyPipeline(device->device, pipeline, NULL);
+}
+
+VkResult createCommandPool(Device *device, uint32_t queueFamily, VkCommandPoolCreateFlags flags, VkCommandPool *commandPool) {
+    VkCommandPoolCreateInfo createInfo = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+        .flags = flags,
+        .queueFamilyIndex = queueFamily,
+    };
+    
+    return vkCreateCommandPool(device->device, &createInfo, NULL, commandPool);
+}
+
+void destroyCommandPool(Device *device, VkCommandPool commandPool) {
+    vkDestroyCommandPool(device->device, commandPool, NULL);
+}
+
+VkResult createSemaphore(Device *device, VkSemaphore *semaphore) {
+    VkSemaphoreCreateInfo info = {
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+    };
+    return vkCreateSemaphore(device->device, &info, NULL, semaphore);
+}
+
+void destroySemaphore(Device *device, VkSemaphore semaphore) {
+    vkDestroySemaphore(device->device, semaphore, NULL);
+}
+
+VkResult createFence(Device *device, VkBool32 signaled, VkFence *fence) {
+    VkFenceCreateInfo info = {
+        .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+        .flags = signaled ? VK_FENCE_CREATE_SIGNALED_BIT : 0,
+    };
+    return vkCreateFence(device->device, &info, NULL, fence);
+}
+
+void destroyFence(Device *device, VkFence fence) {
+    vkDestroyFence(device->device, fence, NULL);
+}
+
+VkResult allocateCommandBuffer(Device *device, VkCommandPool commandPool, VkCommandBufferLevel level, VkCommandBuffer *commandBuffer) {
+    VkCommandBufferAllocateInfo bufferInfo = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+        .commandPool = commandPool,
+        .level = level,
+        .commandBufferCount = 1,
+    };
+
+    return vkAllocateCommandBuffers(device->device, &bufferInfo, commandBuffer);
+}
+
+VkResult beginSimpleCommandBuffer(VkCommandBuffer buffer) {
+    VkCommandBufferBeginInfo info = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+    };
+
+    return vkBeginCommandBuffer(buffer, &info);
+}
+
+VkResult endCommandBuffer(VkCommandBuffer buffer) {
+    return vkEndCommandBuffer(buffer);
+}
+
+VkResult resetCommandBuffer(VkCommandBuffer buffer) {
+    return vkResetCommandBuffer(buffer, 0);
+}
+
+void cmdBeginRenderPass(VkCommandBuffer buffer, VkRenderPassBeginInfo *beginInfo) {
+    vkCmdBeginRenderPass(buffer, beginInfo, VK_SUBPASS_CONTENTS_INLINE);
+}
+
+void cmdEndRenderPass(VkCommandBuffer buffer) {
+    vkCmdEndRenderPass(buffer);
+}
+
+void cmdBindPipeline(VkCommandBuffer buffer, VkPipelineBindPoint bindPoint, VkPipeline pipeline) {
+    vkCmdBindPipeline(buffer, bindPoint, pipeline);
+}
+
+void cmdSetViewport(VkCommandBuffer buffer, VkViewport viewport) {
+    vkCmdSetViewport(buffer, 0, 1, &viewport);
+}
+
+void cmdSetScissor(VkCommandBuffer buffer, VkRect2D scissor) {
+    vkCmdSetScissor(buffer, 0, 1, &scissor);
+}
+
+void cmdDraw(VkCommandBuffer buffer, UInt32Range vertexRange, UInt32Range instanceRange) {
+    assert(vertexRange.max > vertexRange.min);
+    assert(instanceRange.max > instanceRange.min);
+    vkCmdDraw(
+        buffer,
+        vertexRange.max - vertexRange.min,
+        instanceRange.max - instanceRange.min,
+        vertexRange.min,
+        instanceRange.min
+    );
+}
+
+VkResult queueSubmit(VkQueue queue, size_t submitCount, VkSubmitInfo *submits, VkFence fence) {
+    return vkQueueSubmit(queue, submitCount, submits, fence);
+}
+
+VkResult queuePresent(VkQueue queue, VkPresentInfoKHR *presentInfo) {
+    return vkQueuePresentKHR(queue, presentInfo);
 }
 
 VkBool32 getQueueFamilies(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface, QueueFamilyIndices *queueFamilies) {

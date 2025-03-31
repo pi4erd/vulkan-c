@@ -9,6 +9,7 @@ typedef struct {
     uint32_t imageCount;
     VkImage *images;
     VkImageView *imageViews;
+    VkFramebuffer *framebuffers;
 
     VkFormat format;
     VkExtent2D extent;
@@ -16,6 +17,8 @@ typedef struct {
 } Swapchain;
 
 VkResult createSwapChain(Device *device, Window *window, VkSurfaceKHR surface, Swapchain *swapchain);
+VkResult setupFramebuffers(Device *device, Swapchain *swapchain, VkRenderPass renderPass);
 void destroySwapChain(Device *device, Swapchain *swapchain);
+VkResult acquireNextImage(Device *device, Swapchain *swapchain, uint64_t timeout, VkSemaphore semaphore, VkFence fence, uint32_t *image);
 
 #endif

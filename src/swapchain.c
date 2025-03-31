@@ -1,6 +1,7 @@
 #include "swapchain.h"
 #include "macros.h"
 #include "device_utils.h"
+#include "vulkan/vk_enum_string_helper.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -70,6 +71,7 @@ VkResult createSwapChain(Device *device, Window *window, VkSurfaceKHR surface, S
     swapchain->extent = extent;
     swapchain->format = surfaceFormat.format;
     swapchain->presentMode = presentMode;
+    swapchain->framebuffers = NULL;
 
     result = createImageViews(device, swapchain);
     ASSERT_ERR(result, { free(swapchain->images); }, "Failed to create image views.\n");
@@ -78,6 +80,13 @@ VkResult createSwapChain(Device *device, Window *window, VkSurfaceKHR surface, S
 }
 
 void destroySwapChain(Device *device, Swapchain *swapchain) {
+    if(swapchain->framebuffers != NULL) {
+        for(uint32_t i = 0; i < swapchain->imageCount; i++) {
+            vkDestroyFramebuffer(device->device, swapchain->framebuffers[i], NULL);
+        }
+        free(swapchain->framebuffers);
+    }
+
     for(uint32_t i = 0; i < swapchain->imageCount; i++) {
         vkDestroyImageView(device->device, swapchain->imageViews[i], NULL);
     }
@@ -85,6 +94,40 @@ void destroySwapChain(Device *device, Swapchain *swapchain) {
     free(swapchain->imageViews);
     free(swapchain->images);
     vkDestroySwapchainKHR(device->device, swapchain->swapchain, NULL);
+}
+
+VkResult setupFramebuffers(Device *device, Swapchain *swapchain, VkRenderPass renderPass) {
+    uint32_t result;
+
+    swapchain->framebuffers = (VkFramebuffer*)calloc(swapchain->imageCount, sizeof(VkFramebuffer));
+
+    for(uint32_t i = 0; i < swapchain->imageCount; i++) {
+        VkImageView view = swapchain->imageViews[i];
+        VkImageView attachments[] = {view};
+
+        VkFramebufferCreateInfo createInfo = {
+            .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+            .renderPass = renderPass,
+            .pAttachments = attachments,
+            .attachmentCount = 1,
+            .width = swapchain->extent.width,
+            .height = swapchain->extent.height,
+            .layers = 1,
+        };
+
+        result = vkCreateFramebuffer(device->device, &createInfo, NULL, &swapchain->framebuffers[i]);
+        if(result != VK_SUCCESS) {
+            fprintf(stderr, "Failed to create framebuffer: %s.\n", string_VkResult(result));
+            free(swapchain->framebuffers);
+            return result;
+        }
+    }
+
+    return VK_SUCCESS;
+}
+
+VkResult acquireNextImage(Device *device, Swapchain *swapchain, uint64_t timeout, VkSemaphore semaphore, VkFence fence, uint32_t *image) {
+    return vkAcquireNextImageKHR(device->device, swapchain->swapchain, timeout, semaphore, fence, image);
 }
 
 VkResult acquireSwapChainImages(Device *device, VkSwapchainKHR swapchain, uint32_t *imageCount, VkImage **images) {

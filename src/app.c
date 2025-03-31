@@ -1,13 +1,15 @@
 #include "app.h"
 #include "device_api.h"
 #include "engine.h"
-#include "macros.h"
+#include "swapchain.h"
 
 #include <vulkan/vk_enum_string_helper.h>
+#include <vulkan/vulkan_core.h>
 
+#include <stdint.h>
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <vulkan/vulkan_core.h>
 
 typedef struct VKSTATE {
     VkInstance instance;
@@ -23,6 +25,12 @@ typedef struct VKSTATE {
     VkPipelineLayout layout;
     VkRenderPass renderPass;
     VkPipeline graphicsPipeline;
+    
+    VkCommandPool commandPool;
+    VkCommandBuffer commandBuffer;
+
+    VkSemaphore imageAvailableSema, renderFinishedSema;
+    VkFence inFlightFence;
 
     VkBool32 portability;
 } VulkanState;
@@ -124,10 +132,50 @@ VulkanState *initVulkanState(Window *window, VkBool32 debugging) {
 
     CreateGraphicsPipeline(state);
 
+    result = setupFramebuffers(&state->device, &state->swapchain, state->renderPass);
+    if(result != VK_SUCCESS) {
+        fprintf(stderr, "Failed to setup framebuffers: %s.\n", string_VkResult(result));
+        exit(1);
+    }
+
+    result = createCommandPool(
+        &state->device,
+        state->device.queueFamilies.graphics,
+        VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+        &state->commandPool
+    );
+    if(result != VK_SUCCESS) {
+        fprintf(stderr, "Failed to create command pool: %s.\n", string_VkResult(result));
+        exit(1);
+    }
+
+    result = allocateCommandBuffer(
+        &state->device,
+        state->commandPool,
+        VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+        &state->commandBuffer
+    );
+    if(result != VK_SUCCESS) {
+        fprintf(stderr, "Failed to allocate command buffer: %s.\n", string_VkResult(result));
+        exit(1);
+    }
+
+    assert(createSemaphore(&state->device, &state->imageAvailableSema) == VK_SUCCESS);
+    assert(createSemaphore(&state->device, &state->renderFinishedSema) == VK_SUCCESS);
+    assert(createFence(&state->device, VK_TRUE, &state->inFlightFence) == VK_SUCCESS);
+
     return state;
 }
 
 void destroyVulkanState(VulkanState *vulkanState) {
+    assert(waitIdle(&vulkanState->device) == VK_SUCCESS);
+
+    destroySemaphore(&vulkanState->device, vulkanState->imageAvailableSema);
+    destroySemaphore(&vulkanState->device, vulkanState->renderFinishedSema);
+    destroyFence(&vulkanState->device, vulkanState->inFlightFence);
+
+    destroyCommandPool(&vulkanState->device, vulkanState->commandPool);
+
     destroyPipeline(&vulkanState->device, vulkanState->graphicsPipeline);
     destroyPipelineLayout(&vulkanState->device, vulkanState->layout);
     destroyRenderPass(&vulkanState->device, vulkanState->renderPass);
@@ -143,6 +191,105 @@ void destroyVulkanState(VulkanState *vulkanState) {
     destroyInstance(vulkanState->instance);
 
     free(vulkanState);
+}
+
+void recordCommandBuffer(VulkanState *vulkanState, uint32_t imageIndex) {
+    assert(resetCommandBuffer(vulkanState->commandBuffer) == VK_SUCCESS);
+    assert(beginSimpleCommandBuffer(vulkanState->commandBuffer) == VK_SUCCESS);
+
+    VkClearValue clearValue = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
+
+    VkRenderPassBeginInfo beginInfo = {
+        .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+        .renderPass = vulkanState->renderPass,
+        .framebuffer = vulkanState->swapchain.framebuffers[imageIndex],
+        .renderArea = {
+            .offset = {0, 0},
+            .extent = vulkanState->swapchain.extent,
+        },
+        .pClearValues = &clearValue,
+        .clearValueCount = 1,
+    };
+    cmdBeginRenderPass(vulkanState->commandBuffer, &beginInfo);
+    {
+        cmdBindPipeline(vulkanState->commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkanState->graphicsPipeline);
+
+        VkViewport viewport = {
+            .x = 0.0f, .y = 0.0f,
+            .width = (float)vulkanState->swapchain.extent.width,
+            .height = (float)vulkanState->swapchain.extent.height,
+            .minDepth = 0.0f,
+            .maxDepth = 1.0f,
+        };
+        cmdSetViewport(vulkanState->commandBuffer, viewport);
+
+        VkRect2D scissor = {
+            .offset = {0, 0},
+            .extent = vulkanState->swapchain.extent,
+        };
+        cmdSetScissor(vulkanState->commandBuffer, scissor);
+        cmdDraw(vulkanState->commandBuffer, (UInt32Range){0, 3}, (UInt32Range){0, 1});
+    }
+    cmdEndRenderPass(vulkanState->commandBuffer);
+
+    assert(endCommandBuffer(vulkanState->commandBuffer) == VK_SUCCESS);
+}
+
+void syncStartFrame(VulkanState *vulkanState) {
+    assert(waitForFence(&vulkanState->device, vulkanState->inFlightFence, UINT64_MAX) == VK_SUCCESS);
+    assert(resetFence(&vulkanState->device, vulkanState->inFlightFence) == VK_SUCCESS);
+}
+
+VkResult getImage(VulkanState *vulkanState, uint32_t *image) {
+    VkResult result = acquireNextImage(
+        &vulkanState->device,
+        &vulkanState->swapchain,
+        UINT64_MAX,
+        vulkanState->imageAvailableSema,
+        VK_NULL_HANDLE,
+        image
+    );
+
+    return result;
+}
+
+void renderAndPresent(VulkanState *vulkanState, uint32_t imageIndex) {
+    VkSemaphore waitSemaphores[] = {vulkanState->imageAvailableSema};
+    VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+    VkSemaphore signalSemaphores[] = {vulkanState->renderFinishedSema};
+
+    VkSubmitInfo submitInfo = {
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .waitSemaphoreCount = sizeof(waitSemaphores) / sizeof(VkSemaphore),
+        .pWaitSemaphores = waitSemaphores,
+        .pWaitDstStageMask = waitStages,
+        .pCommandBuffers = &vulkanState->commandBuffer,
+        .commandBufferCount = 1,
+        .pSignalSemaphores = signalSemaphores,
+        .signalSemaphoreCount = 1,
+    };
+
+    VkResult result;
+    result = queueSubmit(vulkanState->graphicsQueue, 1, &submitInfo, vulkanState->inFlightFence);
+    if(result != VK_SUCCESS) {
+        fprintf(stderr, "Failed to submit draw to queue: %s.\n", string_VkResult(result));
+        return;
+    }
+
+    VkPresentInfoKHR presentInfo = {
+        .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+        .waitSemaphoreCount = sizeof(signalSemaphores) / sizeof(VkSemaphore),
+        .pWaitSemaphores = signalSemaphores,
+        .swapchainCount = 1,
+        .pSwapchains = &vulkanState->swapchain.swapchain,
+        .pImageIndices = &imageIndex,
+    };
+
+    result = queuePresent(vulkanState->presentQueue, &presentInfo);
+    if(result != VK_SUCCESS) {
+        fprintf(stderr, "Failed to queue present: %s.\n", string_VkResult(result));
+        return;
+    }
 }
 
 #include <main.frag.h>
@@ -275,12 +422,23 @@ void CreateGraphicsPipeline(VulkanState *state) {
         .colorAttachmentCount = 1,
     };
 
+    VkSubpassDependency subpassDependency = {
+        .srcSubpass = VK_SUBPASS_EXTERNAL,
+        .dstSubpass = 0,
+        .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        .srcAccessMask = 0,
+        .dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+    };
+
     VkRenderPassCreateInfo renderPassInfo = {
         .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
         .attachmentCount = 1,
         .pAttachments = &rpColorAttachment,
         .subpassCount = 1,
         .pSubpasses = &subpass,
+        .dependencyCount = 1,
+        .pDependencies = &subpassDependency,
     };
 
     result = createRenderPass(&state->device, &renderPassInfo, &state->renderPass);
