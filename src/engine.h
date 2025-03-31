@@ -8,7 +8,6 @@
 #include "window.h"
 #include "array.h"
 
-#define MAKE_VERSION(major, minor, patch) VK_VERSION_MAJOR(major) | VK_VERSION_MINOR(minor) | VK_VERSION_PATCH(patch)
 #define VK_INSTANCE_FUNC(F, instance) ((PFN_ ## F)vkGetInstanceProcAddr(instance, #F))
 
 VkBool32 debugMessengerCallback(

@@ -2,13 +2,13 @@
 
 int main(void) {
     Window window = createWindow();
-    VulkanState state = initVulkanState(&window, VK_TRUE);
+    VulkanState *state = initVulkanState(&window, VK_TRUE);
 
     while(!windowShouldClose(&window)) {
         pollEvents();
     }
 
-    destroyVulkanState(&state);
+    destroyVulkanState(state);
     destroyWindow(&window);
 
     return 0;

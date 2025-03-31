@@ -53,7 +53,7 @@ size_t formatBytes(char *buffer, size_t bufferSize, const char *filename, const 
     size_t written = snprintf(buffer, bufferSize,
         "#ifndef %s\n"
         "#define %s\n\n"
-        "const char %s[] = {\n"
+        "const unsigned char %s[] = {\n"
         "    %s\n"
         "};\n"
         "\n#endif\n", 

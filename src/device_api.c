@@ -75,6 +75,45 @@ void destroyDevice(Device *device) {
     vkDestroyDevice(device->device, NULL);
 }
 
+
+VkResult createShaderModule(Device *device, const uint32_t *code, size_t codeSize, VkShaderModule *module) {
+    VkShaderModuleCreateInfo createInfo = {
+        .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+        .pCode = code,
+        .codeSize = codeSize,
+    };
+
+    return vkCreateShaderModule(device->device, &createInfo, NULL, module);
+}
+
+void destroyShaderModule(Device *device, VkShaderModule module) {
+    vkDestroyShaderModule(device->device, module, NULL);
+}
+
+VkResult createPipelineLayout(Device *device, VkPipelineLayoutCreateInfo *info, VkPipelineLayout *layout) {
+    return vkCreatePipelineLayout(device->device, info, NULL, layout);
+}
+
+void destroyPipelineLayout(Device *device, VkPipelineLayout layout) {
+    vkDestroyPipelineLayout(device->device, layout, NULL);
+}
+
+VkResult createRenderPass(Device *device, VkRenderPassCreateInfo *info, VkRenderPass *renderPass) {
+    return vkCreateRenderPass(device->device, info, NULL, renderPass);
+}
+
+void destroyRenderPass(Device *device, VkRenderPass renderPass) {
+    vkDestroyRenderPass(device->device, renderPass, NULL);
+}
+
+VkResult createGraphicsPipeline(Device *device, VkGraphicsPipelineCreateInfo *info, VkPipeline *pipeline) {
+    return vkCreateGraphicsPipelines(device->device, VK_NULL_HANDLE, 1, info, NULL, pipeline);
+}
+
+void destroyPipeline(Device *device, VkPipeline pipeline) {
+    vkDestroyPipeline(device->device, pipeline, NULL);
+}
+
 VkBool32 getQueueFamilies(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface, QueueFamilyIndices *queueFamilies) {
     VkBool32 graphicsFound = VK_FALSE, presentFound = VK_FALSE;
     uint32_t graphics, present;

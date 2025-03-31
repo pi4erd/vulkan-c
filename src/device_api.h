@@ -32,6 +32,15 @@ void retrieveQueue(Device *device, uint32_t familyIndex, VkQueue *queue);
 
 #pragma region API
 
+VkResult createShaderModule(Device *device, const uint32_t *code, size_t codeSize, VkShaderModule *module);
+void destroyShaderModule(Device *device, VkShaderModule module);
+VkResult createPipelineLayout(Device *device, VkPipelineLayoutCreateInfo *info, VkPipelineLayout *layout);
+void destroyPipelineLayout(Device *device, VkPipelineLayout layout);
+VkResult createRenderPass(Device *device, VkRenderPassCreateInfo *info, VkRenderPass *renderPass);
+void destroyRenderPass(Device *device, VkRenderPass renderPass);
+VkResult createGraphicsPipeline(Device *device, VkGraphicsPipelineCreateInfo *info, VkPipeline *pipeline);
+void destroyPipeline(Device *device, VkPipeline pipeline);
+
 #pragma endregion
 
 #endif

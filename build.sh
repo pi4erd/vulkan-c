@@ -1,14 +1,32 @@
 #!/bin/sh
 
+# Config
 export CC="cc"
 export LD="gcc"
-export CFLAGS="-std=c17 -Wall -Wextra -Wpedantic"
-LDFLAGS="-lc -lvulkan -lglfw"
 
+# Global dirs
 export BUILDDIR=$(pwd)/build
+export RESOURCEDIR=$(pwd)/resources
+export SRCDIR=$(pwd)/src
+
+# Relative dirs
 export BINDIR=$BUILDDIR/bin
 export OBJDIR=$BUILDDIR/obj
-export SRCDIR=$(pwd)/src
+export SHADERBIN=$OBJDIR/shader
+export RESINCLUDE=$RESOURCEDIR/include
+export RESSHADER=$RESOURCEDIR/shader
+
+mkdir -p $BUILDDIR $BINDIR $OBJDIR $SHADERBIN
+
+# Main project
+CFLAGS="-std=c17 -I$RESINCLUDE -Wall -Wextra -Wpedantic"
+LDFLAGS="-lc -lvulkan -lglfw"
+
+# Build auxilary projects
+(cd embedder; ./build.sh)
+(cd $RESSHADER; ./compile.sh)
+
+# Build main project
 
 TARGET=$BUILDDIR/bin/vulkan-c
 
@@ -23,12 +41,6 @@ OBJFILES=${OBJFILES//.c/.o}
 echo "C flags: $CFLAGS"
 echo "Linker flags: $LDFLAGS"
 echo "Files to build: ${FILES[@]}"
-
-# Build auxilary projects
-(cd embedder; ./build.sh)
-
-# Build main project
-mkdir -p $BUILDDIR $BINDIR $OBJDIR
 
 for file in ${FILES[@]}
 do

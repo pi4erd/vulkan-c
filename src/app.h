@@ -7,20 +7,9 @@
 #include "device_api.h"
 #include "swapchain.h"
 
-typedef struct {
-    VkInstance instance;
-    VkSurfaceKHR surface;
+typedef struct VKSTATE VulkanState;
 
-    VkDebugUtilsMessengerEXT debugMessenger;
-    Device device;
-
-    VkQueue graphicsQueue;
-    VkQueue presentQueue;
-
-    Swapchain swapchain;
-} VulkanState;
-
-VulkanState initVulkanState(Window *window, VkBool32 debugging);
+VulkanState *initVulkanState(Window *window, VkBool32 debugging);
 void destroyVulkanState(VulkanState *vulkanState);
 
 #endif
