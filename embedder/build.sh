@@ -2,7 +2,7 @@
 
 echo "Building embedder."
 
-CFLAGS="-std=c17 -I$RESINCLUDE -Wall -Wextra -Wpedantic"
+CFLAGS="-std=c17 -Wall -Wextra -Wpedantic"
 LDFLAGS=
 
 TARGET=$BINDIR/embedder

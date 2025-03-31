@@ -22,7 +22,7 @@ mkdir -p $BUILDDIR $BINDIR $OBJDIR $SHADERBIN
 CFLAGS="-std=c17 -I$RESINCLUDE -Wall -Wextra -Wpedantic"
 LDFLAGS="-lc -lvulkan -lglfw"
 
-if [[ -nz "${MACOS}" ]]; then
+if [[  x"${MACOS}" != "x" ]]; then
     CFLAGS+=" -I/opt/homebrew/include -I/usr/local/include"
     LDFLAGS+=" -L/opt/homebrew/lib -rpath /usr/local/lib"
 fi
