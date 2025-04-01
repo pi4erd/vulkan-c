@@ -19,7 +19,7 @@ export RESSHADER=$RESOURCEDIR/shader
 mkdir -p $BUILDDIR $BINDIR $OBJDIR $SHADERBIN
 
 # Main project settings
-CFLAGS="-std=c17 -I$RESINCLUDE -Wall -Wextra -Wpedantic"
+CFLAGS="-std=c17 -ggdb -I$RESINCLUDE -Wall -Wextra -Wpedantic"
 LDFLAGS="-lc -lvulkan -lglfw"
 
 if [[  x"${MACOS}" != "x" ]]; then

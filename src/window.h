@@ -11,5 +11,6 @@ Window createWindow(void);
 int windowShouldClose(Window *window);
 void pollEvents(void);
 void destroyWindow(Window *window);
+void getFramebufferSize(Window *window, int *width, int *height);
 
 #endif

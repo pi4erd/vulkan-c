@@ -2,7 +2,9 @@
 #include "device_api.h"
 #include "engine.h"
 #include "swapchain.h"
+#include "window.h"
 
+#include <GLFW/glfw3.h>
 #include <vulkan/vk_enum_string_helper.h>
 #include <vulkan/vulkan_core.h>
 
@@ -35,6 +37,7 @@ typedef struct VKSTATE {
     VkFence *inFlightFences;
 
     VkBool32 portability;
+    VkBool32 framebufferResized;
     uint32_t currentFrame;
 } VulkanState;
 
@@ -167,6 +170,7 @@ VulkanState *initVulkanState(Window *window, VkBool32 debugging) {
     state->imageAvailableSemas = (VkSemaphore*)calloc(FRAMES_IN_FLIGHT, sizeof(VkSemaphore));
     state->renderFinishedSemas = (VkSemaphore*)calloc(FRAMES_IN_FLIGHT, sizeof(VkSemaphore));
     state->inFlightFences = (VkFence*)calloc(FRAMES_IN_FLIGHT, sizeof(VkFence));
+    state->framebufferResized = VK_FALSE;
     state->currentFrame = 0;
 
     for(size_t i = 0; i < FRAMES_IN_FLIGHT; i++) {
@@ -253,25 +257,38 @@ void recordCommandBuffer(VulkanState *vulkanState, uint32_t imageIndex) {
     assert(endCommandBuffer(vulkanState->commandBuffers[vulkanState->currentFrame]) == VK_SUCCESS);
 }
 
-void syncStartFrame(VulkanState *vulkanState) {
+VkBool32 getImage(VulkanState *vulkanState, Window *window, uint32_t *image) {
     assert(waitForFence(&vulkanState->device, vulkanState->inFlightFences[vulkanState->currentFrame], UINT64_MAX) == VK_SUCCESS);
-    assert(resetFence(&vulkanState->device, vulkanState->inFlightFences[vulkanState->currentFrame]) == VK_SUCCESS);
-}
 
-VkResult getImage(VulkanState *vulkanState, uint32_t *image) {
-    VkResult result = acquireNextImage(
+    uint32_t imageIndex;
+    VkResult getImageResult = acquireNextImage(
         &vulkanState->device,
         &vulkanState->swapchain,
         UINT64_MAX,
         vulkanState->imageAvailableSemas[vulkanState->currentFrame],
         VK_NULL_HANDLE,
-        image
+        &imageIndex
     );
+    switch(getImageResult) {
+        case VK_ERROR_OUT_OF_DATE_KHR:
+        recreateSwapChain(vulkanState, window);
+        return VK_FALSE;
+        case VK_SUBOPTIMAL_KHR:
+        case VK_SUCCESS:
+        break;
+        default:
+        fprintf(stderr, "Failed to get image: %s.\n", string_VkResult(getImageResult));
+        glfwSetWindowShouldClose(window->window, GLFW_TRUE);
+        return VK_FALSE;
+    }
 
-    return result;
+    assert(resetFence(&vulkanState->device, vulkanState->inFlightFences[vulkanState->currentFrame]) == VK_SUCCESS);
+
+    *image = imageIndex;
+    return VK_TRUE;
 }
 
-void renderAndPresent(VulkanState *vulkanState, uint32_t imageIndex) {
+void renderAndPresent(VulkanState *vulkanState, Window *window, uint32_t imageIndex) {
     VkSemaphore waitSemaphores[] = {vulkanState->imageAvailableSemas[vulkanState->currentFrame]};
     VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
     VkSemaphore signalSemaphores[] = {vulkanState->renderFinishedSemas[vulkanState->currentFrame]};
@@ -304,12 +321,40 @@ void renderAndPresent(VulkanState *vulkanState, uint32_t imageIndex) {
     };
 
     result = queuePresent(vulkanState->presentQueue, &presentInfo);
-    if(result != VK_SUCCESS) {
+    if(result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || vulkanState->framebufferResized) {
+        recreateSwapChain(vulkanState, window);
+        vulkanState->framebufferResized = VK_FALSE;
+    } else if(result != VK_SUCCESS) {
         fprintf(stderr, "Failed to queue present: %s.\n", string_VkResult(result));
         return;
     }
 
     vulkanState->currentFrame = (vulkanState->currentFrame + 1) % FRAMES_IN_FLIGHT;
+}
+
+void recreateSwapChain(VulkanState *vulkanState, Window *window) {
+    int width = 0, height = 0;
+    getFramebufferSize(window, &width, &height);
+    while(width == 0 || height == 0) {
+        getFramebufferSize(window, &width, &height);
+        glfwWaitEvents();
+    }
+
+    waitIdle(&vulkanState->device);
+    
+    destroySwapChain(&vulkanState->device, &vulkanState->swapchain);
+    assert(createSwapChain(
+        &vulkanState->device,
+        window,
+        vulkanState->surface,
+        &vulkanState->swapchain
+    ) == VK_SUCCESS);
+
+    assert(setupFramebuffers(&vulkanState->device, &vulkanState->swapchain, vulkanState->renderPass) == VK_SUCCESS);
+}
+
+void framebufferResized(VulkanState *vulkanState) {
+    vulkanState->framebufferResized = VK_TRUE;
 }
 
 #include <main.frag.h>
