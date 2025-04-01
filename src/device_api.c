@@ -175,6 +175,19 @@ VkResult allocateCommandBuffer(Device *device, VkCommandPool commandPool, VkComm
     return vkAllocateCommandBuffers(device->device, &bufferInfo, commandBuffer);
 }
 
+VkResult allocateCommandBuffers(Device *device, VkCommandPool commandPool, VkCommandBufferLevel level, size_t bufferCount, VkCommandBuffer **commandBuffers) {
+    VkCommandBufferAllocateInfo bufferInfo = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+        .commandPool = commandPool,
+        .level = level,
+        .commandBufferCount = bufferCount,
+    };
+
+    *commandBuffers = (VkCommandBuffer*)calloc(bufferCount, sizeof(VkCommandBuffer));
+
+    return vkAllocateCommandBuffers(device->device, &bufferInfo, *commandBuffers);
+}
+
 VkResult beginSimpleCommandBuffer(VkCommandBuffer buffer) {
     VkCommandBufferBeginInfo info = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,

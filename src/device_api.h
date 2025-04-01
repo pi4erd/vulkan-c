@@ -52,6 +52,7 @@ VkResult createFence(Device *device, VkBool32 signaled, VkFence *fence);
 void destroyFence(Device *device, VkFence fence);
 
 VkResult allocateCommandBuffer(Device *device, VkCommandPool commandPool, VkCommandBufferLevel level, VkCommandBuffer *commandBuffer);
+VkResult allocateCommandBuffers(Device *device, VkCommandPool commandPool, VkCommandBufferLevel level, size_t bufferCount, VkCommandBuffer **commandBuffers);
 VkResult beginSimpleCommandBuffer(VkCommandBuffer buffer);
 VkResult endCommandBuffer(VkCommandBuffer buffer);
 VkResult resetCommandBuffer(VkCommandBuffer buffer);

@@ -11,6 +11,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#define FRAMES_IN_FLIGHT 2
+
 typedef struct VKSTATE {
     VkInstance instance;
     VkSurfaceKHR surface;
@@ -27,12 +29,13 @@ typedef struct VKSTATE {
     VkPipeline graphicsPipeline;
     
     VkCommandPool commandPool;
-    VkCommandBuffer commandBuffer;
 
-    VkSemaphore imageAvailableSema, renderFinishedSema;
-    VkFence inFlightFence;
+    VkCommandBuffer *commandBuffers;
+    VkSemaphore *imageAvailableSemas, *renderFinishedSemas;
+    VkFence *inFlightFences;
 
     VkBool32 portability;
+    uint32_t currentFrame;
 } VulkanState;
 
 void CreateGraphicsPipeline(VulkanState *state);
@@ -149,20 +152,28 @@ VulkanState *initVulkanState(Window *window, VkBool32 debugging) {
         exit(1);
     }
 
-    result = allocateCommandBuffer(
+    result = allocateCommandBuffers(
         &state->device,
         state->commandPool,
         VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-        &state->commandBuffer
+        FRAMES_IN_FLIGHT,
+        &state->commandBuffers
     );
     if(result != VK_SUCCESS) {
         fprintf(stderr, "Failed to allocate command buffer: %s.\n", string_VkResult(result));
         exit(1);
     }
 
-    assert(createSemaphore(&state->device, &state->imageAvailableSema) == VK_SUCCESS);
-    assert(createSemaphore(&state->device, &state->renderFinishedSema) == VK_SUCCESS);
-    assert(createFence(&state->device, VK_TRUE, &state->inFlightFence) == VK_SUCCESS);
+    state->imageAvailableSemas = (VkSemaphore*)calloc(FRAMES_IN_FLIGHT, sizeof(VkSemaphore));
+    state->renderFinishedSemas = (VkSemaphore*)calloc(FRAMES_IN_FLIGHT, sizeof(VkSemaphore));
+    state->inFlightFences = (VkFence*)calloc(FRAMES_IN_FLIGHT, sizeof(VkFence));
+    state->currentFrame = 0;
+
+    for(size_t i = 0; i < FRAMES_IN_FLIGHT; i++) {
+        assert(createSemaphore(&state->device, &state->imageAvailableSemas[i]) == VK_SUCCESS);
+        assert(createSemaphore(&state->device, &state->renderFinishedSemas[i]) == VK_SUCCESS);
+        assert(createFence(&state->device, VK_TRUE, &state->inFlightFences[i]) == VK_SUCCESS);
+    }
 
     return state;
 }
@@ -170,11 +181,18 @@ VulkanState *initVulkanState(Window *window, VkBool32 debugging) {
 void destroyVulkanState(VulkanState *vulkanState) {
     assert(waitIdle(&vulkanState->device) == VK_SUCCESS);
 
-    destroySemaphore(&vulkanState->device, vulkanState->imageAvailableSema);
-    destroySemaphore(&vulkanState->device, vulkanState->renderFinishedSema);
-    destroyFence(&vulkanState->device, vulkanState->inFlightFence);
+    for(size_t i = 0; i < FRAMES_IN_FLIGHT; i++) {
+        destroySemaphore(&vulkanState->device, vulkanState->imageAvailableSemas[i]);
+        destroySemaphore(&vulkanState->device, vulkanState->renderFinishedSemas[i]);
+        destroyFence(&vulkanState->device, vulkanState->inFlightFences[i]);
+    } 
+
+    free(vulkanState->imageAvailableSemas);
+    free(vulkanState->renderFinishedSemas);
+    free(vulkanState->inFlightFences);
 
     destroyCommandPool(&vulkanState->device, vulkanState->commandPool);
+    free(vulkanState->commandBuffers);
 
     destroyPipeline(&vulkanState->device, vulkanState->graphicsPipeline);
     destroyPipelineLayout(&vulkanState->device, vulkanState->layout);
@@ -194,8 +212,8 @@ void destroyVulkanState(VulkanState *vulkanState) {
 }
 
 void recordCommandBuffer(VulkanState *vulkanState, uint32_t imageIndex) {
-    assert(resetCommandBuffer(vulkanState->commandBuffer) == VK_SUCCESS);
-    assert(beginSimpleCommandBuffer(vulkanState->commandBuffer) == VK_SUCCESS);
+    assert(resetCommandBuffer(vulkanState->commandBuffers[vulkanState->currentFrame]) == VK_SUCCESS);
+    assert(beginSimpleCommandBuffer(vulkanState->commandBuffers[vulkanState->currentFrame]) == VK_SUCCESS);
 
     VkClearValue clearValue = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
 
@@ -210,9 +228,9 @@ void recordCommandBuffer(VulkanState *vulkanState, uint32_t imageIndex) {
         .pClearValues = &clearValue,
         .clearValueCount = 1,
     };
-    cmdBeginRenderPass(vulkanState->commandBuffer, &beginInfo);
+    cmdBeginRenderPass(vulkanState->commandBuffers[vulkanState->currentFrame], &beginInfo);
     {
-        cmdBindPipeline(vulkanState->commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkanState->graphicsPipeline);
+        cmdBindPipeline(vulkanState->commandBuffers[vulkanState->currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, vulkanState->graphicsPipeline);
 
         VkViewport viewport = {
             .x = 0.0f, .y = 0.0f,
@@ -221,23 +239,23 @@ void recordCommandBuffer(VulkanState *vulkanState, uint32_t imageIndex) {
             .minDepth = 0.0f,
             .maxDepth = 1.0f,
         };
-        cmdSetViewport(vulkanState->commandBuffer, viewport);
+        cmdSetViewport(vulkanState->commandBuffers[vulkanState->currentFrame], viewport);
 
         VkRect2D scissor = {
             .offset = {0, 0},
             .extent = vulkanState->swapchain.extent,
         };
-        cmdSetScissor(vulkanState->commandBuffer, scissor);
-        cmdDraw(vulkanState->commandBuffer, (UInt32Range){0, 3}, (UInt32Range){0, 1});
+        cmdSetScissor(vulkanState->commandBuffers[vulkanState->currentFrame], scissor);
+        cmdDraw(vulkanState->commandBuffers[vulkanState->currentFrame], (UInt32Range){0, 3}, (UInt32Range){0, 1});
     }
-    cmdEndRenderPass(vulkanState->commandBuffer);
+    cmdEndRenderPass(vulkanState->commandBuffers[vulkanState->currentFrame]);
 
-    assert(endCommandBuffer(vulkanState->commandBuffer) == VK_SUCCESS);
+    assert(endCommandBuffer(vulkanState->commandBuffers[vulkanState->currentFrame]) == VK_SUCCESS);
 }
 
 void syncStartFrame(VulkanState *vulkanState) {
-    assert(waitForFence(&vulkanState->device, vulkanState->inFlightFence, UINT64_MAX) == VK_SUCCESS);
-    assert(resetFence(&vulkanState->device, vulkanState->inFlightFence) == VK_SUCCESS);
+    assert(waitForFence(&vulkanState->device, vulkanState->inFlightFences[vulkanState->currentFrame], UINT64_MAX) == VK_SUCCESS);
+    assert(resetFence(&vulkanState->device, vulkanState->inFlightFences[vulkanState->currentFrame]) == VK_SUCCESS);
 }
 
 VkResult getImage(VulkanState *vulkanState, uint32_t *image) {
@@ -245,7 +263,7 @@ VkResult getImage(VulkanState *vulkanState, uint32_t *image) {
         &vulkanState->device,
         &vulkanState->swapchain,
         UINT64_MAX,
-        vulkanState->imageAvailableSema,
+        vulkanState->imageAvailableSemas[vulkanState->currentFrame],
         VK_NULL_HANDLE,
         image
     );
@@ -254,23 +272,23 @@ VkResult getImage(VulkanState *vulkanState, uint32_t *image) {
 }
 
 void renderAndPresent(VulkanState *vulkanState, uint32_t imageIndex) {
-    VkSemaphore waitSemaphores[] = {vulkanState->imageAvailableSema};
+    VkSemaphore waitSemaphores[] = {vulkanState->imageAvailableSemas[vulkanState->currentFrame]};
     VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
-    VkSemaphore signalSemaphores[] = {vulkanState->renderFinishedSema};
+    VkSemaphore signalSemaphores[] = {vulkanState->renderFinishedSemas[vulkanState->currentFrame]};
 
     VkSubmitInfo submitInfo = {
         .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
         .waitSemaphoreCount = sizeof(waitSemaphores) / sizeof(VkSemaphore),
         .pWaitSemaphores = waitSemaphores,
         .pWaitDstStageMask = waitStages,
-        .pCommandBuffers = &vulkanState->commandBuffer,
+        .pCommandBuffers = &vulkanState->commandBuffers[vulkanState->currentFrame],
         .commandBufferCount = 1,
         .pSignalSemaphores = signalSemaphores,
         .signalSemaphoreCount = 1,
     };
 
     VkResult result;
-    result = queueSubmit(vulkanState->graphicsQueue, 1, &submitInfo, vulkanState->inFlightFence);
+    result = queueSubmit(vulkanState->graphicsQueue, 1, &submitInfo, vulkanState->inFlightFences[vulkanState->currentFrame]);
     if(result != VK_SUCCESS) {
         fprintf(stderr, "Failed to submit draw to queue: %s.\n", string_VkResult(result));
         return;
@@ -290,6 +308,8 @@ void renderAndPresent(VulkanState *vulkanState, uint32_t imageIndex) {
         fprintf(stderr, "Failed to queue present: %s.\n", string_VkResult(result));
         return;
     }
+
+    vulkanState->currentFrame = (vulkanState->currentFrame + 1) % FRAMES_IN_FLIGHT;
 }
 
 #include <main.frag.h>
