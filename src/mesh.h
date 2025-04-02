@@ -34,15 +34,6 @@ typedef struct {
     uint32_t indexCount;
 } Mesh;
 
-Mesh createMesh(
-    VkAlloc *allocator,
-    const Vertex *vertices,
-    size_t vertexCount,
-    const uint32_t *indices,
-    size_t indexCount
-);
-void destroyMesh(VkAlloc *allocator, Mesh *mesh);
-
 VertexInputDescription vertexDescription(void);
 
 #endif

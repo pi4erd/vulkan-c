@@ -60,7 +60,10 @@ void destroyBuffer(Device *device, VkBuffer buffer);
 
 VkResult allocateCommandBuffer(Device *device, VkCommandPool commandPool, VkCommandBufferLevel level, VkCommandBuffer *commandBuffer);
 VkResult allocateCommandBuffers(Device *device, VkCommandPool commandPool, VkCommandBufferLevel level, size_t bufferCount, VkCommandBuffer **commandBuffers);
+void freeCommandBuffers(Device *device, VkCommandPool commandPool, VkCommandBuffer *buffers, size_t count);
 VkResult beginSimpleCommandBuffer(VkCommandBuffer buffer);
+VkResult beginOneTimeCommandBuffer(VkCommandBuffer buffer);
+VkResult beginCommandBuffer(VkCommandBuffer buffer, VkCommandBufferUsageFlags flags);
 VkResult endCommandBuffer(VkCommandBuffer buffer);
 VkResult resetCommandBuffer(VkCommandBuffer buffer);
 
@@ -73,6 +76,7 @@ void cmdDraw(VkCommandBuffer buffer, UInt32Range vertexRange, UInt32Range instan
 void cmdDrawIndexed(VkCommandBuffer buffer, UInt32Range indexRange, UInt32Range instanceRange, uint32_t vertexOffset);
 void cmdBindVertexBuffers(VkCommandBuffer buffer, UInt32Range bindings, VkBuffer *vertexBuffers, VkDeviceSize *offsets);
 void cmdBindIndexBuffer(VkCommandBuffer buffer, VkBuffer indexBuffer, VkDeviceSize offset, VkIndexType indexType);
+void cmdCopyBuffer(VkCommandBuffer buffer, VkBuffer src, VkBuffer dst, uint32_t regionCount, VkBufferCopy *regions);
 
 VkMemoryRequirements getBufferMemoryRequirements(Device *device, VkBuffer buffer);
 VkPhysicalDeviceMemoryProperties getPhysicalDeviceMemoryProperties(Device *device);
@@ -82,6 +86,7 @@ void unmapMemory(Device *device, VkDeviceMemory memory);
 
 VkResult queueSubmit(VkQueue queue, size_t submitCount, VkSubmitInfo *submits, VkFence fence);
 VkResult queuePresent(VkQueue queue, VkPresentInfoKHR *presentInfo);
+VkResult queueWaitIdle(VkQueue queue);
 
 #pragma endregion
 

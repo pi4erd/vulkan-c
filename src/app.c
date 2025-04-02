@@ -15,6 +15,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define FRAMES_IN_FLIGHT 2
 
@@ -48,6 +49,16 @@ typedef struct VKSTATE {
 } VulkanState;
 
 void CreateGraphicsPipeline(VulkanState *state);
+void CopyBuffer(VulkanState *state, Buffer *dst, Buffer *src);
+Mesh CreateMesh(
+    VulkanState *state,
+    const Vertex *vertices,
+    size_t vertexCount,
+    const uint32_t *indices,
+    size_t indexCount
+);
+void DestroyMesh(VulkanState *state, Mesh *mesh);
+Buffer CreateBufferGQueue(VulkanState *state, VkDeviceSize bufferSize, VkBufferUsageFlags usage, VkMemoryPropertyFlags memoryFlags);
 
 VulkanState *initVulkanState(Window *window, VkBool32 debugging) {
     StringArray extensions = createStringArray(1000);
@@ -199,8 +210,8 @@ VulkanState *initVulkanState(Window *window, VkBool32 debugging) {
         0, 3, 2,
     };
 
-    state->mesh = createMesh(
-        state->allocator,
+    state->mesh = CreateMesh(
+        state,
         vertices, sizeof(vertices) / sizeof(Vertex),
         indices, sizeof(indices) / sizeof(uint32_t)
     );
@@ -211,7 +222,7 @@ VulkanState *initVulkanState(Window *window, VkBool32 debugging) {
 void destroyVulkanState(VulkanState *vulkanState) {
     assert(waitIdle(&vulkanState->device) == VK_SUCCESS);
 
-    destroyMesh(vulkanState->allocator, &vulkanState->mesh);
+    DestroyMesh(vulkanState, &vulkanState->mesh);
     destroyAllocator(vulkanState->allocator);
 
     for(size_t i = 0; i < FRAMES_IN_FLIGHT; i++) {
@@ -593,4 +604,112 @@ void CreateGraphicsPipeline(VulkanState *state) {
 
     destroyShaderModule(&state->device, fragment);
     destroyShaderModule(&state->device, vertex);
+}
+
+void CopyBuffer(VulkanState *state, Buffer *dst, Buffer *src) {
+    VkCommandBuffer transferBuffer;
+    assert(allocateCommandBuffer(
+        &state->device,
+        state->commandPool,
+        VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+        &transferBuffer
+    ) == VK_SUCCESS);
+
+    assert(beginOneTimeCommandBuffer(transferBuffer) == VK_SUCCESS);
+
+    VkBufferCopy copyRegion = {
+        .dstOffset = 0,
+        .srcOffset = 0,
+        .size = src->memorySize,
+    };
+    cmdCopyBuffer(transferBuffer, src->buffer, dst->buffer, 1, &copyRegion);
+
+    assert(endCommandBuffer(transferBuffer) == VK_SUCCESS);
+
+    VkSubmitInfo submitInfo = {
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .pCommandBuffers = &transferBuffer,
+        .commandBufferCount = 1,
+    };
+    assert(queueSubmit(state->graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE) == VK_SUCCESS);
+    assert(queueWaitIdle(state->graphicsQueue) == VK_SUCCESS);
+
+    freeCommandBuffers(&state->device, state->commandPool, &transferBuffer, 1);
+}
+
+Mesh CreateMesh(
+    VulkanState *state,
+    const Vertex *vertices,
+    size_t vertexCount,
+    const uint32_t *indices,
+    size_t indexCount
+) {
+    Mesh mesh;
+
+    mesh.vertexBuffer = CreateBufferGQueue(
+        state,
+        sizeof(Vertex) * vertexCount,
+        VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+    );
+    mesh.indexBuffer = CreateBufferGQueue(
+        state,
+        sizeof(uint32_t) * indexCount,
+        VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+    );
+
+    Buffer vertexStaging = CreateBufferGQueue(
+        state,
+        sizeof(Vertex) * vertexCount,
+        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+    );
+    Buffer indexStaging = CreateBufferGQueue(
+        state,
+        sizeof(uint32_t) * indexCount,
+        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+    );
+
+    void *ptr;
+    ptr = mapBufferMemory(state->allocator, &vertexStaging);
+    assert(ptr != NULL);
+        memcpy(ptr, vertices, sizeof(Vertex) * vertexCount);
+    unmapBufferMemory(state->allocator, &vertexStaging);
+
+    ptr = mapBufferMemory(state->allocator, &indexStaging);
+    assert(ptr != NULL);
+        memcpy(ptr, indices, sizeof(uint32_t) * indexCount);
+    unmapBufferMemory(state->allocator, &indexStaging);
+
+    CopyBuffer(state, &mesh.vertexBuffer, &vertexStaging);
+    CopyBuffer(state, &mesh.indexBuffer, &indexStaging);
+
+    destroyDeallocateBuffer(state->allocator, &vertexStaging);
+    destroyDeallocateBuffer(state->allocator, &indexStaging);
+
+    mesh.indexCount = indexCount;
+
+    return mesh;
+}
+
+void DestroyMesh(VulkanState *state, Mesh *mesh) {
+    destroyDeallocateBuffer(state->allocator, &mesh->vertexBuffer);
+    destroyDeallocateBuffer(state->allocator, &mesh->indexBuffer);
+}
+
+Buffer CreateBufferGQueue(VulkanState *state, VkDeviceSize bufferSize, VkBufferUsageFlags usage, VkMemoryPropertyFlags memoryFlags) {
+    VkBufferCreateInfo bufferInfo = {
+        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+        .pQueueFamilyIndices = &state->device.queueFamilies.graphics,
+        .queueFamilyIndexCount = 1,
+        .usage = usage,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        .size = bufferSize,
+    };
+    Buffer buffer;
+    assert(createAllocateBuffer(state->allocator, &bufferInfo, memoryFlags, &buffer) == VK_SUCCESS);
+
+    return buffer;
 }

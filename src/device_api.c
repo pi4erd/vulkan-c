@@ -196,9 +196,22 @@ VkResult allocateCommandBuffers(Device *device, VkCommandPool commandPool, VkCom
     return vkAllocateCommandBuffers(device->device, &bufferInfo, *commandBuffers);
 }
 
+void freeCommandBuffers(Device *device, VkCommandPool commandPool, VkCommandBuffer *buffers, size_t count) {
+    vkFreeCommandBuffers(device->device, commandPool, count, buffers);
+}
+
 VkResult beginSimpleCommandBuffer(VkCommandBuffer buffer) {
+    return beginCommandBuffer(buffer, 0);
+}
+
+VkResult beginOneTimeCommandBuffer(VkCommandBuffer buffer) {
+    return beginCommandBuffer(buffer, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+}
+
+VkResult beginCommandBuffer(VkCommandBuffer buffer, VkCommandBufferUsageFlags flags) {
     VkCommandBufferBeginInfo info = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .flags = flags,
     };
 
     return vkBeginCommandBuffer(buffer, &info);
@@ -277,6 +290,10 @@ void cmdBindIndexBuffer(VkCommandBuffer buffer, VkBuffer indexBuffer, VkDeviceSi
     );
 }
 
+void cmdCopyBuffer(VkCommandBuffer buffer, VkBuffer src, VkBuffer dst, uint32_t regionCount, VkBufferCopy *regions) {
+    vkCmdCopyBuffer(buffer, src, dst, regionCount, regions);
+}
+
 VkMemoryRequirements getBufferMemoryRequirements(Device *device, VkBuffer buffer) {
     VkMemoryRequirements reqs;
     vkGetBufferMemoryRequirements(device->device, buffer, &reqs);
@@ -309,9 +326,13 @@ VkResult queuePresent(VkQueue queue, VkPresentInfoKHR *presentInfo) {
     return vkQueuePresentKHR(queue, presentInfo);
 }
 
+VkResult queueWaitIdle(VkQueue queue) {
+    return vkQueueWaitIdle(queue);
+}
+
 VkBool32 getQueueFamilies(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface, QueueFamilyIndices *queueFamilies) {
     VkBool32 graphicsFound = VK_FALSE, presentFound = VK_FALSE;
-    uint32_t graphics, present;
+    uint32_t graphics = UINT32_MAX, present = UINT32_MAX;
 
     uint32_t queueFamiliesCount;
     vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamiliesCount, NULL);

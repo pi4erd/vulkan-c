@@ -7,7 +7,7 @@
 
 DEFINE_ARRAY(DeviceMemory, VkDeviceMemory)
 
-// Simple arena allocator: does not deallocate until destroyed
+// Simple arena allocator: does not deallocate until destroyed (for now)
 typedef struct {
     Device *device;
     DeviceMemoryArray array;
