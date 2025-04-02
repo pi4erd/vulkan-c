@@ -18,6 +18,10 @@ typedef struct {
     QueueFamilyIndices queueFamilies;
 } Device;
 
+typedef struct {
+    uint32_t min, max;
+} UInt32Range;
+
 VkResult createDevice(
     VkInstance instance,
     VkSurfaceKHR surface,
@@ -51,6 +55,9 @@ void destroySemaphore(Device *device, VkSemaphore semaphore);
 VkResult createFence(Device *device, VkBool32 signaled, VkFence *fence);
 void destroyFence(Device *device, VkFence fence);
 
+VkResult createBuffer(Device *device, VkBufferCreateInfo *bufferInfo, VkBuffer *buffer);
+void destroyBuffer(Device *device, VkBuffer buffer);
+
 VkResult allocateCommandBuffer(Device *device, VkCommandPool commandPool, VkCommandBufferLevel level, VkCommandBuffer *commandBuffer);
 VkResult allocateCommandBuffers(Device *device, VkCommandPool commandPool, VkCommandBufferLevel level, size_t bufferCount, VkCommandBuffer **commandBuffers);
 VkResult beginSimpleCommandBuffer(VkCommandBuffer buffer);
@@ -62,15 +69,19 @@ void cmdEndRenderPass(VkCommandBuffer buffer);
 void cmdBindPipeline(VkCommandBuffer buffer, VkPipelineBindPoint bindPoint, VkPipeline pipeline);
 void cmdSetViewport(VkCommandBuffer buffer, VkViewport viewport);
 void cmdSetScissor(VkCommandBuffer buffer, VkRect2D scissor);
+void cmdDraw(VkCommandBuffer buffer, UInt32Range vertexRange, UInt32Range instanceRange);
+void cmdDrawIndexed(VkCommandBuffer buffer, UInt32Range indexRange, UInt32Range instanceRange, uint32_t vertexOffset);
+void cmdBindVertexBuffers(VkCommandBuffer buffer, UInt32Range bindings, VkBuffer *vertexBuffers, VkDeviceSize *offsets);
+void cmdBindIndexBuffer(VkCommandBuffer buffer, VkBuffer indexBuffer, VkDeviceSize offset, VkIndexType indexType);
+
+VkMemoryRequirements getBufferMemoryRequirements(Device *device, VkBuffer buffer);
+VkPhysicalDeviceMemoryProperties getPhysicalDeviceMemoryProperties(Device *device);
+VkResult bindBufferMemory(Device *device, VkBuffer buffer, VkDeviceMemory memory, VkDeviceSize offset);
+VkResult mapMemory(Device *device, VkDeviceMemory memory, VkDeviceSize offset, VkDeviceSize size, void **ptr);
+void unmapMemory(Device *device, VkDeviceMemory memory);
 
 VkResult queueSubmit(VkQueue queue, size_t submitCount, VkSubmitInfo *submits, VkFence fence);
 VkResult queuePresent(VkQueue queue, VkPresentInfoKHR *presentInfo);
-
-typedef struct {
-    uint32_t min, max;
-} UInt32Range;
-
-void cmdDraw(VkCommandBuffer buffer, UInt32Range vertexRange, UInt32Range instanceRange);
 
 #pragma endregion
 

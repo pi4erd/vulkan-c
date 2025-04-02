@@ -36,7 +36,7 @@ fi
 TARGET=$BUILDDIR/bin/vulkan-c
 
 FILES=(
-    main.c engine.c array.c device_api.c 
+    main.c engine.c device_api.c vkalloc.c mesh.c
     device_utils.c window.c swapchain.c app.c
 )
 
@@ -55,9 +55,6 @@ do
     $COMMAND
 done
 
-echo ${FILES[@]}
-echo $OBJFILES
 COMMAND="$LD $LDFLAGS -o $TARGET $OBJFILES"
 echo $COMMAND
 $COMMAND
-

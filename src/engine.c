@@ -71,7 +71,7 @@ VkBool32 debugMessengerCallback(
 
 VkResult createInstance(StringArray extensions, StringArray layers, VkBool32 portability, VkInstance *instance) {
     if(portability) {
-        addStringToArray(&extensions, VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
+        StringArrayAddElement(&extensions, VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
     }
 
     if(!checkInstanceLayers(layers)) {

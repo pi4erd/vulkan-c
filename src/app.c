@@ -1,7 +1,10 @@
 #include "app.h"
+#include "array.h"
 #include "device_api.h"
 #include "engine.h"
+#include "mesh.h"
 #include "swapchain.h"
+#include "vkalloc.h"
 #include "window.h"
 
 #include <GLFW/glfw3.h>
@@ -36,6 +39,9 @@ typedef struct VKSTATE {
     VkSemaphore *imageAvailableSemas, *renderFinishedSemas;
     VkFence *inFlightFences;
 
+    VkAlloc *allocator;
+    Mesh mesh;
+
     VkBool32 portability;
     VkBool32 framebufferResized;
     uint32_t currentFrame;
@@ -52,12 +58,12 @@ VulkanState *initVulkanState(Window *window, VkBool32 debugging) {
     uint32_t glfwRequiredExtensionCount;
     const char **glfwRequiredExtensions = glfwGetRequiredInstanceExtensions(&glfwRequiredExtensionCount);
     
-    appendStringArray(&extensions, glfwRequiredExtensions, glfwRequiredExtensionCount);
-    addStringToArray(&extensions, VK_KHR_SURFACE_EXTENSION_NAME);
+    StringArrayAppendConstArray(&extensions, glfwRequiredExtensions, glfwRequiredExtensionCount);
+    StringArrayAddElement(&extensions, VK_KHR_SURFACE_EXTENSION_NAME);
 
     if(debugging) {
-        addStringToArray(&layers, "VK_LAYER_KHRONOS_validation");
-        addStringToArray(&extensions, VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+        StringArrayAddElement(&layers, "VK_LAYER_KHRONOS_validation");
+        StringArrayAddElement(&extensions, VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
     }
 
     VkResult result;
@@ -101,12 +107,12 @@ VulkanState *initVulkanState(Window *window, VkBool32 debugging) {
     StringArray deviceLayers = createStringArray(1000);
 
     if(portability) {
-        addStringToArray(&deviceExtensions, "VK_KHR_portability_subset");
+        StringArrayAddElement(&deviceExtensions, "VK_KHR_portability_subset");
     }
-    addStringToArray(&deviceExtensions, VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+    StringArrayAddElement(&deviceExtensions, VK_KHR_SWAPCHAIN_EXTENSION_NAME);
 
     if(debugging) {
-        addStringToArray(&deviceLayers, "VK_LAYER_KHRONOS_validation");
+        StringArrayAddElement(&deviceLayers, "VK_LAYER_KHRONOS_validation");
     }
 
     VkPhysicalDeviceFeatures features = {0};
@@ -179,11 +185,34 @@ VulkanState *initVulkanState(Window *window, VkBool32 debugging) {
         assert(createFence(&state->device, VK_TRUE, &state->inFlightFences[i]) == VK_SUCCESS);
     }
 
+    state->allocator = createAllocator(&state->device);
+
+    // Game logic starts here :)
+    const Vertex vertices[] = {
+        {{-0.8f, -0.8f, 0.0f}, {1.0f, 0.0f, 0.0f}},
+        {{0.8f, -0.8f, 0.0f}, {0.0f, 1.0f, 0.0f}},
+        {{0.8f, 0.8f, 0.0f}, {0.0f, 0.0f, 1.0f}},
+        {{-0.8f, 0.8f, 0.0f}, {1.0f, 0.0f, 0.0f}},
+    };
+    const uint32_t indices[] = {
+        0, 2, 1,
+        0, 3, 2,
+    };
+
+    state->mesh = createMesh(
+        state->allocator,
+        vertices, sizeof(vertices) / sizeof(Vertex),
+        indices, sizeof(indices) / sizeof(uint32_t)
+    );
+
     return state;
 }
 
 void destroyVulkanState(VulkanState *vulkanState) {
     assert(waitIdle(&vulkanState->device) == VK_SUCCESS);
+
+    destroyMesh(vulkanState->allocator, &vulkanState->mesh);
+    destroyAllocator(vulkanState->allocator);
 
     for(size_t i = 0; i < FRAMES_IN_FLIGHT; i++) {
         destroySemaphore(&vulkanState->device, vulkanState->imageAvailableSemas[i]);
@@ -216,8 +245,10 @@ void destroyVulkanState(VulkanState *vulkanState) {
 }
 
 void recordCommandBuffer(VulkanState *vulkanState, uint32_t imageIndex) {
-    assert(resetCommandBuffer(vulkanState->commandBuffers[vulkanState->currentFrame]) == VK_SUCCESS);
-    assert(beginSimpleCommandBuffer(vulkanState->commandBuffers[vulkanState->currentFrame]) == VK_SUCCESS);
+    VkCommandBuffer cmdBuffer = vulkanState->commandBuffers[vulkanState->currentFrame];
+
+    assert(resetCommandBuffer(cmdBuffer) == VK_SUCCESS);
+    assert(beginSimpleCommandBuffer(cmdBuffer) == VK_SUCCESS);
 
     VkClearValue clearValue = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
 
@@ -232,9 +263,9 @@ void recordCommandBuffer(VulkanState *vulkanState, uint32_t imageIndex) {
         .pClearValues = &clearValue,
         .clearValueCount = 1,
     };
-    cmdBeginRenderPass(vulkanState->commandBuffers[vulkanState->currentFrame], &beginInfo);
+    cmdBeginRenderPass(cmdBuffer, &beginInfo);
     {
-        cmdBindPipeline(vulkanState->commandBuffers[vulkanState->currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, vulkanState->graphicsPipeline);
+        cmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkanState->graphicsPipeline);
 
         VkViewport viewport = {
             .x = 0.0f, .y = 0.0f,
@@ -243,18 +274,38 @@ void recordCommandBuffer(VulkanState *vulkanState, uint32_t imageIndex) {
             .minDepth = 0.0f,
             .maxDepth = 1.0f,
         };
-        cmdSetViewport(vulkanState->commandBuffers[vulkanState->currentFrame], viewport);
+        cmdSetViewport(cmdBuffer, viewport);
 
         VkRect2D scissor = {
             .offset = {0, 0},
             .extent = vulkanState->swapchain.extent,
         };
-        cmdSetScissor(vulkanState->commandBuffers[vulkanState->currentFrame], scissor);
-        cmdDraw(vulkanState->commandBuffers[vulkanState->currentFrame], (UInt32Range){0, 3}, (UInt32Range){0, 1});
-    }
-    cmdEndRenderPass(vulkanState->commandBuffers[vulkanState->currentFrame]);
+        cmdSetScissor(cmdBuffer, scissor);
 
-    assert(endCommandBuffer(vulkanState->commandBuffers[vulkanState->currentFrame]) == VK_SUCCESS);
+        VkBuffer vertexBuffers[] = {vulkanState->mesh.vertexBuffer.buffer};
+        VkDeviceSize offsets[] = {0};
+        cmdBindVertexBuffers(
+            cmdBuffer,
+            (UInt32Range){0, 1},
+            vertexBuffers,
+            offsets
+        );
+        cmdBindIndexBuffer(
+            cmdBuffer,
+            vulkanState->mesh.indexBuffer.buffer,
+            0,
+            VK_INDEX_TYPE_UINT32
+        );
+        cmdDrawIndexed(
+            cmdBuffer,
+            (UInt32Range){0, vulkanState->mesh.indexCount},
+            (UInt32Range){0, 1},
+            0
+        );
+    }
+    cmdEndRenderPass(cmdBuffer);
+
+    assert(endCommandBuffer(cmdBuffer) == VK_SUCCESS);
 }
 
 VkBool32 getImage(VulkanState *vulkanState, Window *window, uint32_t *image) {
@@ -404,10 +455,14 @@ void CreateGraphicsPipeline(VulkanState *state) {
         .dynamicStateCount = sizeof(dynamicStates) / sizeof(VkDynamicState),
     };
 
+    VertexInputDescription desc = vertexDescription();
+
     VkPipelineVertexInputStateCreateInfo inputStateInfo = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-        .vertexBindingDescriptionCount = 0,
-        .vertexAttributeDescriptionCount = 0,
+        .pVertexBindingDescriptions = desc.bindings,
+        .vertexBindingDescriptionCount = sizeof(desc.bindings) / sizeof(VkVertexInputBindingDescription),
+        .pVertexAttributeDescriptions = desc.attributes,
+        .vertexAttributeDescriptionCount = sizeof(desc.attributes) / sizeof(VkVertexInputAttributeDescription),
     };
 
     VkPipelineInputAssemblyStateCreateInfo assemblyInfo = {

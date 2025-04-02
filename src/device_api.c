@@ -164,6 +164,14 @@ void destroyFence(Device *device, VkFence fence) {
     vkDestroyFence(device->device, fence, NULL);
 }
 
+VkResult createBuffer(Device *device, VkBufferCreateInfo *bufferInfo, VkBuffer *buffer) {
+    return vkCreateBuffer(device->device, bufferInfo, NULL, buffer);
+}
+
+void destroyBuffer(Device *device, VkBuffer buffer) {
+    vkDestroyBuffer(device->device, buffer, NULL);
+}
+
 VkResult allocateCommandBuffer(Device *device, VkCommandPool commandPool, VkCommandBufferLevel level, VkCommandBuffer *commandBuffer) {
     VkCommandBufferAllocateInfo bufferInfo = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
@@ -234,6 +242,63 @@ void cmdDraw(VkCommandBuffer buffer, UInt32Range vertexRange, UInt32Range instan
         vertexRange.min,
         instanceRange.min
     );
+}
+
+void cmdDrawIndexed(VkCommandBuffer buffer, UInt32Range indexRange, UInt32Range instanceRange, uint32_t vertexOffset) {
+    assert(indexRange.max > indexRange.min);
+    assert(instanceRange.max > instanceRange.min);
+    vkCmdDrawIndexed(
+        buffer,
+        indexRange.max - indexRange.min,
+        instanceRange.max - instanceRange.min,
+        indexRange.min,
+        vertexOffset,
+        instanceRange.min
+    );
+}
+
+void cmdBindVertexBuffers(VkCommandBuffer buffer, UInt32Range bindings, VkBuffer *vertexBuffers, VkDeviceSize *offsets) {
+    assert(bindings.max > bindings.min);
+    vkCmdBindVertexBuffers(
+        buffer,
+        bindings.min,
+        bindings.max - bindings.min,
+        vertexBuffers,
+        offsets
+    );
+}
+
+void cmdBindIndexBuffer(VkCommandBuffer buffer, VkBuffer indexBuffer, VkDeviceSize offset, VkIndexType indexType) {
+    vkCmdBindIndexBuffer(
+        buffer,
+        indexBuffer,
+        offset,
+        indexType
+    );
+}
+
+VkMemoryRequirements getBufferMemoryRequirements(Device *device, VkBuffer buffer) {
+    VkMemoryRequirements reqs;
+    vkGetBufferMemoryRequirements(device->device, buffer, &reqs);
+    return reqs;
+}
+
+VkPhysicalDeviceMemoryProperties getPhysicalDeviceMemoryProperties(Device *device) {
+    VkPhysicalDeviceMemoryProperties props;
+    vkGetPhysicalDeviceMemoryProperties(device->physicalDevice, &props);
+    return props;
+}
+
+VkResult bindBufferMemory(Device *device, VkBuffer buffer, VkDeviceMemory memory, VkDeviceSize offset) {
+    return vkBindBufferMemory(device->device, buffer, memory, offset);
+}
+
+VkResult mapMemory(Device *device, VkDeviceMemory memory, VkDeviceSize offset, VkDeviceSize size, void **ptr) {
+    return vkMapMemory(device->device, memory, offset, size, 0, ptr);
+}
+
+void unmapMemory(Device *device, VkDeviceMemory memory) {
+    vkUnmapMemory(device->device, memory);
 }
 
 VkResult queueSubmit(VkQueue queue, size_t submitCount, VkSubmitInfo *submits, VkFence fence) {
