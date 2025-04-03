@@ -73,11 +73,11 @@ VulkanState *initVulkanState(Window *window, VkBool32 debugging) {
 
     VulkanState *state = calloc(1, sizeof(VulkanState));
 
-    uint32_t glfwRequiredExtensionCount;
+    uint32_t glfwRequiredExtensionCount = 0;
     const char **glfwRequiredExtensions = glfwGetRequiredInstanceExtensions(&glfwRequiredExtensionCount);
+    assert(glfwRequiredExtensionCount != 0);
     
     StringArrayAppendConstArray(&extensions, glfwRequiredExtensions, glfwRequiredExtensionCount);
-    StringArrayAddElement(&extensions, VK_KHR_SURFACE_EXTENSION_NAME);
 
     if(debugging) {
         StringArrayAddElement(&layers, VK_KHR_VALIDATION_LAYER_NAME);

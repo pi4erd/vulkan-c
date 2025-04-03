@@ -37,7 +37,8 @@
     } \
     inline void NAME##ArrayAddElement(NAME ## Array *array, TYPE element) { \
         if(array->elementCount + 1 > array->capacity) { \
-            array->elements = (TYPE*)realloc(array->elements, (array->elementCount + 1) * sizeof(TYPE)); \
+            array->capacity *= 2; \
+            array->elements = (TYPE*)realloc(array->elements, (array->capacity) * sizeof(TYPE)); \
             assert(array->elements != NULL); \
         } \
         array->elements[array->elementCount++] = element; \

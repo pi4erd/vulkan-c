@@ -122,6 +122,19 @@ VkResult createInstance(StringArray extensions, StringArray layers, VkBool32 por
         .flags = portability ? VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR : 0,
     };
 
+    VkBool32 surfaceFound = VK_FALSE;
+
+    fprintf(stderr, "Creating instance with %zu extensions:\n", extensions.elementCount);
+    for(size_t i = 0; i < extensions.elementCount; i++) {
+        fprintf(stderr, " - %s\n", extensions.elements[i]);
+        if(strcmp(extensions.elements[i], VK_KHR_SURFACE_EXTENSION_NAME) == 0)
+            surfaceFound = VK_TRUE;
+    }
+
+    if(!surfaceFound) {
+        fprintf(stderr, "Warning: no surface extension provided while creating instance!\n");
+    }
+
     return vkCreateInstance(&instanceInfo, NULL, instance);
 }
 
