@@ -1,5 +1,7 @@
 #include "device_api.h"
+#include "array.h"
 #include "device_utils.h"
+#include "engine.h"
 
 #include <GLFW/glfw3.h>
 #include <vulkan/vk_enum_string_helper.h>
@@ -13,16 +15,19 @@
 #include <string.h>
 #include <vulkan/vulkan_core.h>
 
-VkResult pickPhysicalDevice(VkInstance instance, VkSurfaceKHR surface, VkPhysicalDeviceFeatures *features, StringArray extensions, VkPhysicalDevice *physicalDevice);
+VkResult pickPhysicalDevice(VkInstance instance, VkSurfaceKHR surface, StringArray extensions, VkPhysicalDevice *physicalDevice);
 VkBool32 getQueueFamilies(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface, QueueFamilyIndices *queueFamilies);
 
 void retrieveQueue(Device *device, uint32_t familyIndex, VkQueue *queue) {
     vkGetDeviceQueue(device->device, familyIndex, 0, queue);
 }
 
-VkResult createDevice(VkInstance instance, VkSurfaceKHR surface, VkPhysicalDeviceFeatures *features, StringArray layers, StringArray extensions, Device *device) {
+VkResult createDevice(VkInstance instance, VkSurfaceKHR surface, VkPhysicalDeviceFeatures2 *features, StringArray layers, StringArray extensions, Device *device) {
     uint32_t result;
-    result = pickPhysicalDevice(instance, surface, features, extensions, &device->physicalDevice);
+    result = pickPhysicalDevice(
+        instance, surface,
+        extensions, &device->physicalDevice
+    );
     
     if(result != VK_SUCCESS) {
         return result;
@@ -61,7 +66,8 @@ VkResult createDevice(VkInstance instance, VkSurfaceKHR surface, VkPhysicalDevic
         .enabledLayerCount = layers.elementCount,
         .pQueueCreateInfos = queueCreateInfos,
         .queueCreateInfoCount = queueCreateInfoCount,
-        .pEnabledFeatures = features
+        .pEnabledFeatures = VK_NULL_HANDLE,
+        .pNext = features,
     };
 
     result = vkCreateDevice(device->physicalDevice, &createInfo, NULL, &device->device);
@@ -75,7 +81,6 @@ VkResult createDevice(VkInstance instance, VkSurfaceKHR surface, VkPhysicalDevic
 void destroyDevice(Device *device) {
     vkDestroyDevice(device->device, NULL);
 }
-
 
 VkResult waitForFence(Device *device, VkFence fence, uint64_t timeout) {
     return vkWaitForFences(device->device, 1, &fence, VK_TRUE, timeout);
@@ -164,6 +169,52 @@ void destroyFence(Device *device, VkFence fence) {
     vkDestroyFence(device->device, fence, NULL);
 }
 
+VkResult createAccelerationStructureKHR(
+    Device *device,
+    VkAccelerationStructureCreateInfoKHR *structureInfo,
+    VkAccelerationStructureKHR *accelerationStructure
+) {
+    return VK_DEVICE_FUNC(vkCreateAccelerationStructureKHR, device->device)(
+        device->device,
+        structureInfo,
+        NULL,
+        accelerationStructure
+    );
+}
+
+void destroyAccelerationStructureKHR(Device *device, VkAccelerationStructureKHR structure) {
+    VK_DEVICE_FUNC(vkDestroyAccelerationStructureKHR, device->device)(device->device, structure, NULL);
+}
+
+VkResult createRayTracingPipelineKHR(
+    Device *device,
+    VkPipelineLayout layout,
+    VkPipelineDynamicStateCreateInfo *dynamicState,
+    VkRayTracingShaderGroupCreateInfoKHR *groupInfo,
+    PipelineStageArray stages,
+    VkPipeline *pipeline
+) {
+    VkRayTracingPipelineCreateInfoKHR info = {
+        .sType = VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR,
+        .layout = layout,
+        .pGroups = groupInfo,
+        .groupCount = 1,
+        .pStages = stages.elements,
+        .stageCount = stages.elementCount,
+        .maxPipelineRayRecursionDepth = 8,
+        .pDynamicState = dynamicState,
+    };
+    
+    return VK_DEVICE_FUNC(vkCreateRayTracingPipelinesKHR, device->device)(
+        device->device,
+        VK_NULL_HANDLE,
+        VK_NULL_HANDLE,
+        1, &info,
+        NULL,
+        pipeline
+    );
+}
+
 VkResult createBuffer(Device *device, VkBufferCreateInfo *bufferInfo, VkBuffer *buffer) {
     return vkCreateBuffer(device->device, bufferInfo, NULL, buffer);
 }
@@ -223,6 +274,22 @@ VkResult endCommandBuffer(VkCommandBuffer buffer) {
 
 VkResult resetCommandBuffer(VkCommandBuffer buffer) {
     return vkResetCommandBuffer(buffer, 0);
+}
+
+void cmdPipelineBarrier(
+    VkCommandBuffer buffer,
+    VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask,
+    VkDependencyFlags dependencyFlags, uint32_t memoryBarrierCount, const VkMemoryBarrier *pMemoryBarriers,
+    uint32_t bufferMemoryBarrierCount, const VkBufferMemoryBarrier *pBufferMemoryBarriers,
+    uint32_t imageMemoryBarrierCount, const VkImageMemoryBarrier *pImageMemoryBarriers
+) {
+    vkCmdPipelineBarrier(
+        buffer,
+        srcStageMask, dstStageMask,
+        dependencyFlags, memoryBarrierCount, pMemoryBarriers,
+        bufferMemoryBarrierCount, pBufferMemoryBarriers,
+        imageMemoryBarrierCount, pImageMemoryBarriers
+    );
 }
 
 void cmdBeginRenderPass(VkCommandBuffer buffer, VkRenderPassBeginInfo *beginInfo) {
@@ -330,6 +397,14 @@ VkResult queueWaitIdle(VkQueue queue) {
     return vkQueueWaitIdle(queue);
 }
 
+void cmdBeginRenderingKHR(Device *device, VkCommandBuffer buffer, VkRenderingInfoKHR *info) {
+    VK_DEVICE_FUNC(vkCmdBeginRenderingKHR, device->device)(buffer, info);
+}
+
+void cmdEndRenderingKHR(Device *device, VkCommandBuffer buffer) {
+    VK_DEVICE_FUNC(vkCmdEndRenderingKHR, device->device)(buffer);
+}
+
 VkBool32 getQueueFamilies(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface, QueueFamilyIndices *queueFamilies) {
     VkBool32 graphicsFound = VK_FALSE, presentFound = VK_FALSE;
     uint32_t graphics = UINT32_MAX, present = UINT32_MAX;
@@ -368,7 +443,7 @@ VkBool32 getQueueFamilies(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface,
     return graphicsFound && presentFound;
 }
 
-VkResult pickPhysicalDevice(VkInstance instance, VkSurfaceKHR surface, VkPhysicalDeviceFeatures *requiredFeatures, StringArray requiredExtensions, VkPhysicalDevice *physicalDevice) {
+VkResult pickPhysicalDevice(VkInstance instance, VkSurfaceKHR surface, StringArray requiredExtensions, VkPhysicalDevice *physicalDevice) {
     uint32_t highscore = 0;
     VkPhysicalDevice bestDevice;
     VkPhysicalDeviceProperties bestProperties;
@@ -404,8 +479,7 @@ VkResult pickPhysicalDevice(VkInstance instance, VkSurfaceKHR surface, VkPhysica
         vkGetPhysicalDeviceProperties(device, &properties);
         vkGetPhysicalDeviceFeatures(device, &features);
 
-        // TODO: Check features present
-        (void)requiredFeatures;
+        (void)features;
 
         uint32_t extensionCount;
         vkEnumerateDeviceExtensionProperties(device, NULL, &extensionCount, NULL);

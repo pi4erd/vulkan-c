@@ -1,5 +1,6 @@
 #include "engine.h"
 #include "array.h"
+#include "device_api.h"
 
 #include <GLFW/glfw3.h>
 #include <string.h>
@@ -134,6 +135,45 @@ void destroySurface(VkInstance instance, VkSurfaceKHR surface) {
 
 void destroyInstance(VkInstance instance) {
     vkDestroyInstance(instance, NULL);
+}
+
+void transitionImageLayout(
+    VkCommandBuffer commandBuffer,
+    VkImage image,
+    VkImageLayout oldLayout,
+    VkImageLayout newLayout,
+    VkAccessFlags srcAccessMask,
+    VkAccessFlags dstAccessMask,
+    VkPipelineStageFlags srcStage,
+    VkPipelineStageFlags dstStage
+) {
+    VkImageSubresourceRange subresourceRange = {
+        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+        .baseArrayLayer = 0,
+        .baseMipLevel = 0,
+        .layerCount = 1,
+        .levelCount = 1,
+    };
+
+    VkImageMemoryBarrier barrier = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+        .oldLayout = oldLayout,
+        .newLayout = newLayout,
+        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .image = image,
+        .subresourceRange = subresourceRange,
+        .srcAccessMask = srcAccessMask,
+        .dstAccessMask = dstAccessMask,
+    };
+
+    cmdPipelineBarrier(
+        commandBuffer,
+        srcStage,
+        dstStage,
+        0, 0, NULL, 0, NULL,
+        1, &barrier
+    );
 }
 
 VkBool32 checkInstanceExtensions(StringArray extensions) {

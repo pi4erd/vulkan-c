@@ -19,8 +19,20 @@ typedef struct {
     VkDeviceSize memorySize;
 } Buffer;
 
+typedef struct {
+    Buffer buffer;
+    VkAccelerationStructureKHR structure;
+} AccelerationStructure;
+
 VkAlloc *createAllocator(Device *device);
 void destroyAllocator(VkAlloc *alloc);
+
+VkDeviceAddress getBufferAddress(Device *device, Buffer *buffer);
+VkResult createBlas(
+    VkAlloc *device,
+    VkDeviceSize size,
+    AccelerationStructure *structure
+);
 
 VkResult allocateDeviceMemory(VkAlloc *alloc, VkMemoryRequirements reqs, VkMemoryPropertyFlags flags, VkDeviceMemory *memory);
 VkResult createAllocateBuffer(VkAlloc *alloc, VkBufferCreateInfo *bufferInfo, VkMemoryPropertyFlags flags, Buffer *buffer);

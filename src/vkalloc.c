@@ -25,6 +25,67 @@ void destroyAllocator(VkAlloc *alloc) {
     free(alloc);
 }
 
+VkDeviceAddress getBufferAddress(Device *device, Buffer *buffer) {
+    VkBufferDeviceAddressInfo addressInfo = {
+        .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
+        .buffer = buffer->buffer,
+    };
+    return vkGetBufferDeviceAddress(device->device, &addressInfo);
+}
+
+VkResult createBlas(
+    VkAlloc *alloc,
+    VkDeviceSize size,
+    AccelerationStructure *structure
+) {
+    VkBufferCreateInfo bufferInfo = {
+        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+        .pQueueFamilyIndices = &alloc->device->queueFamilies.graphics,
+        .queueFamilyIndexCount = 1,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        .size = size,
+        .usage = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR
+    };
+    VkResult result;
+    result = createAllocateBuffer(
+        alloc,
+        &bufferInfo,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+        &structure->buffer
+    );
+    if(result != VK_SUCCESS) {
+        fprintf(
+            stderr,
+            "Failed to allocate buffer for acceleration structure: %s.\n",
+            string_VkResult(result)
+        );
+        return result;
+    }
+
+    VkAccelerationStructureCreateInfoKHR info = {
+        .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR,
+        .buffer = structure->buffer.buffer,
+        .offset = 0,
+        .type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR,
+        .size = structure->buffer.memorySize,
+        .deviceAddress = 0,
+    };
+
+    result = createAccelerationStructureKHR(
+        alloc->device,
+        &info,
+        &structure->structure
+    );
+    if(result != VK_SUCCESS) {
+        fprintf(stderr, "Failed to create acceleration structure: %s.\n",
+            string_VkResult(result)
+        );
+        return result;
+    }
+
+    return VK_SUCCESS;
+}
+
 VkResult allocateDeviceMemory(VkAlloc *alloc, VkMemoryRequirements reqs, VkMemoryPropertyFlags flags, VkDeviceMemory *memory) {
     uint32_t result;
 

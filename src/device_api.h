@@ -7,6 +7,8 @@
 #include <vulkan/vulkan.h>
 #include <vulkan/vulkan_core.h>
 
+DEFINE_ARRAY(PipelineStage, VkPipelineShaderStageCreateInfo)
+
 typedef struct {
     uint32_t graphics;
     uint32_t present;
@@ -25,7 +27,7 @@ typedef struct {
 VkResult createDevice(
     VkInstance instance,
     VkSurfaceKHR surface,
-    VkPhysicalDeviceFeatures *features,
+    VkPhysicalDeviceFeatures2 *features,
     StringArray layers,
     StringArray extensions,
     Device *device
@@ -67,6 +69,13 @@ VkResult beginCommandBuffer(VkCommandBuffer buffer, VkCommandBufferUsageFlags fl
 VkResult endCommandBuffer(VkCommandBuffer buffer);
 VkResult resetCommandBuffer(VkCommandBuffer buffer);
 
+void cmdPipelineBarrier(
+    VkCommandBuffer buffer,
+    VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask,
+    VkDependencyFlags dependencyFlags, uint32_t memoryBarrierCount, const VkMemoryBarrier *pMemoryBarriers,
+    uint32_t bufferMemoryBarrierCount, const VkBufferMemoryBarrier *pBufferMemoryBarriers,
+    uint32_t imageMemoryBarrierCount, const VkImageMemoryBarrier *pImageMemoryBarriers
+);
 void cmdBeginRenderPass(VkCommandBuffer buffer, VkRenderPassBeginInfo *beginInfo);
 void cmdEndRenderPass(VkCommandBuffer buffer);
 void cmdBindPipeline(VkCommandBuffer buffer, VkPipelineBindPoint bindPoint, VkPipeline pipeline);
@@ -87,6 +96,25 @@ void unmapMemory(Device *device, VkDeviceMemory memory);
 VkResult queueSubmit(VkQueue queue, size_t submitCount, VkSubmitInfo *submits, VkFence fence);
 VkResult queuePresent(VkQueue queue, VkPresentInfoKHR *presentInfo);
 VkResult queueWaitIdle(VkQueue queue);
+
+// KHR
+VkResult createAccelerationStructureKHR(
+    Device *device,
+    VkAccelerationStructureCreateInfoKHR *structureInfo,
+    VkAccelerationStructureKHR *accelerationStructure
+);
+void destroyAccelerationStructureKHR(Device *device, VkAccelerationStructureKHR structure);
+VkResult createRayTracingPipelineKHR(
+    Device *device,
+    VkPipelineLayout layout,
+    VkPipelineDynamicStateCreateInfo *dynamicState,
+    VkRayTracingShaderGroupCreateInfoKHR *groupInfo,
+    PipelineStageArray stages,
+    VkPipeline *pipeline
+);
+
+void cmdBeginRenderingKHR(Device *device, VkCommandBuffer buffer, VkRenderingInfoKHR *info);
+void cmdEndRenderingKHR(Device *device, VkCommandBuffer buffer);
 
 #pragma endregion
 

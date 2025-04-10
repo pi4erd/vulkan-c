@@ -9,6 +9,7 @@
 #include "array.h"
 
 #define VK_INSTANCE_FUNC(F, instance) ((PFN_ ## F)vkGetInstanceProcAddr(instance, #F))
+#define VK_DEVICE_FUNC(F, device) ((PFN_ ## F)vkGetDeviceProcAddr(device, #F))
 
 VkBool32 debugMessengerCallback(
     VkDebugUtilsMessageSeverityFlagsEXT severity,
@@ -32,5 +33,16 @@ VkResult createDebugMessenger(
 void destroyDebugMessenger(VkInstance instance, VkDebugUtilsMessengerEXT messenger);
 void destroySurface(VkInstance instance, VkSurfaceKHR surface);
 void destroyInstance(VkInstance instance);
+
+void transitionImageLayout(
+    VkCommandBuffer commandBuffer,
+    VkImage image,
+    VkImageLayout oldLayout,
+    VkImageLayout newLayout,
+    VkAccessFlags srcAccessMask,
+    VkAccessFlags dstAccessMask,
+    VkPipelineStageFlags srcStage,
+    VkPipelineStageFlags dstStage
+);
 
 #endif

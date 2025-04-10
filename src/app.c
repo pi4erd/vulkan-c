@@ -31,7 +31,6 @@ typedef struct VKSTATE {
 
     Swapchain swapchain;
     VkPipelineLayout layout;
-    VkRenderPass renderPass;
     VkPipeline graphicsPipeline;
     
     VkCommandPool commandPool;
@@ -121,21 +120,43 @@ VulkanState *initVulkanState(Window *window, VkBool32 debugging) {
         StringArrayAddElement(&deviceExtensions, "VK_KHR_portability_subset");
     }
     StringArrayAddElement(&deviceExtensions, VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+    StringArrayAddElement(&deviceExtensions, VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME);
 
     if(debugging) {
         StringArrayAddElement(&deviceLayers, "VK_LAYER_KHRONOS_validation");
     }
 
-    VkPhysicalDeviceFeatures features = {0};
+    // Add ray support
+    StringArrayAddElement(&deviceExtensions, VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);
+    StringArrayAddElement(&deviceExtensions, VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
+    StringArrayAddElement(&deviceExtensions, VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME);
 
-    result = createDevice(
-        state->instance,
-        state->surface,
-        &features,
-        deviceLayers,
-        deviceExtensions,
-        &state->device
-    );
+    {
+        // device creation
+        VkPhysicalDeviceRayTracingPipelineFeaturesKHR raytrace = {
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR,
+            .rayTracingPipeline = VK_TRUE,
+        };
+        VkPhysicalDeviceDynamicRenderingFeaturesKHR dynrendering = {
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES_KHR,
+            .dynamicRendering = VK_TRUE,
+            .pNext = &raytrace,
+        };
+        VkPhysicalDeviceFeatures2 features = {
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+            .features = {0},
+            .pNext = &dynrendering,
+        };
+        
+        result = createDevice(
+            state->instance,
+            state->surface,
+            &features,
+            deviceLayers,
+            deviceExtensions,
+            &state->device
+        );
+    }
     destroyStringArray(&deviceExtensions);
     destroyStringArray(&deviceLayers);
 
@@ -154,12 +175,6 @@ VulkanState *initVulkanState(Window *window, VkBool32 debugging) {
     }
 
     CreateGraphicsPipeline(state);
-
-    result = setupFramebuffers(&state->device, &state->swapchain, state->renderPass);
-    if(result != VK_SUCCESS) {
-        fprintf(stderr, "Failed to setup framebuffers: %s.\n", string_VkResult(result));
-        exit(1);
-    }
 
     result = createCommandPool(
         &state->device,
@@ -240,7 +255,6 @@ void destroyVulkanState(VulkanState *vulkanState) {
 
     destroyPipeline(&vulkanState->device, vulkanState->graphicsPipeline);
     destroyPipelineLayout(&vulkanState->device, vulkanState->layout);
-    destroyRenderPass(&vulkanState->device, vulkanState->renderPass);
 
     destroySwapChain(&vulkanState->device, &vulkanState->swapchain);
     destroyDevice(&vulkanState->device);
@@ -261,20 +275,38 @@ void recordCommandBuffer(VulkanState *vulkanState, uint32_t imageIndex) {
     assert(resetCommandBuffer(cmdBuffer) == VK_SUCCESS);
     assert(beginSimpleCommandBuffer(cmdBuffer) == VK_SUCCESS);
 
-    VkClearValue clearValue = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
+    transitionImageLayout(cmdBuffer, vulkanState->swapchain.images[imageIndex],
+        VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        VK_ACCESS_NONE, VK_ACCESS_COLOR_ATTACHMENT_READ_BIT,
+        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT
+    );
 
-    VkRenderPassBeginInfo beginInfo = {
-        .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-        .renderPass = vulkanState->renderPass,
-        .framebuffer = vulkanState->swapchain.framebuffers[imageIndex],
-        .renderArea = {
-            .offset = {0, 0},
-            .extent = vulkanState->swapchain.extent,
-        },
-        .pClearValues = &clearValue,
-        .clearValueCount = 1,
+    VkClearValue clearValue = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
+    VkRenderingAttachmentInfoKHR attachment = {
+        .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR,
+        .clearValue = clearValue,
+        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+        .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+        .imageView = vulkanState->swapchain.imageViews[imageIndex],
+        .imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        .resolveImageLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+        .resolveMode = VK_RESOLVE_MODE_NONE,
     };
-    cmdBeginRenderPass(cmdBuffer, &beginInfo);
+
+    VkRenderingInfoKHR renderInfo = {
+        .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
+        .pColorAttachments = &attachment,
+        .colorAttachmentCount = 1,
+        .pDepthAttachment = VK_NULL_HANDLE,
+        .pStencilAttachment = VK_NULL_HANDLE,
+        .viewMask = 0,
+        .layerCount = 1,
+        .renderArea = {
+            {0, 0},
+            vulkanState->swapchain.extent,
+        },
+    };
+    cmdBeginRenderingKHR(&vulkanState->device, cmdBuffer, &renderInfo);
     {
         cmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkanState->graphicsPipeline);
 
@@ -314,7 +346,13 @@ void recordCommandBuffer(VulkanState *vulkanState, uint32_t imageIndex) {
             0
         );
     }
-    cmdEndRenderPass(cmdBuffer);
+    cmdEndRenderingKHR(&vulkanState->device, cmdBuffer);
+
+    transitionImageLayout(cmdBuffer, vulkanState->swapchain.images[imageIndex],
+        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+        VK_ACCESS_COLOR_ATTACHMENT_READ_BIT, VK_ACCESS_NONE,
+        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT
+    );
 
     assert(endCommandBuffer(cmdBuffer) == VK_SUCCESS);
 }
@@ -411,8 +449,6 @@ void recreateSwapChain(VulkanState *vulkanState, Window *window) {
         vulkanState->surface,
         &vulkanState->swapchain
     ) == VK_SUCCESS);
-
-    assert(setupFramebuffers(&vulkanState->device, &vulkanState->swapchain, vulkanState->renderPass) == VK_SUCCESS);
 }
 
 void framebufferResized(VulkanState *vulkanState) {
@@ -531,52 +567,14 @@ void CreateGraphicsPipeline(VulkanState *state) {
         exit(1);
     }
 
-    VkAttachmentDescription rpColorAttachment = {
-        .format = state->swapchain.format,
-        .samples = VK_SAMPLE_COUNT_1_BIT,
-        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-        .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-        .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-        .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-        .finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-    };
-
-    VkAttachmentReference rpColorAttachmentRef = {
-        .attachment = 0,
-        .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-    };
-
-    VkSubpassDescription subpass = {
-        .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
-        .pColorAttachments = &rpColorAttachmentRef,
+    VkPipelineRenderingCreateInfoKHR pipelineRendering = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR,
         .colorAttachmentCount = 1,
+        .pColorAttachmentFormats = &state->swapchain.format,
+        .stencilAttachmentFormat = VK_FORMAT_UNDEFINED,
+        .depthAttachmentFormat = VK_FORMAT_UNDEFINED,
+        .viewMask = 0,
     };
-
-    VkSubpassDependency subpassDependency = {
-        .srcSubpass = VK_SUBPASS_EXTERNAL,
-        .dstSubpass = 0,
-        .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-        .srcAccessMask = 0,
-        .dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-        .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-    };
-
-    VkRenderPassCreateInfo renderPassInfo = {
-        .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-        .attachmentCount = 1,
-        .pAttachments = &rpColorAttachment,
-        .subpassCount = 1,
-        .pSubpasses = &subpass,
-        .dependencyCount = 1,
-        .pDependencies = &subpassDependency,
-    };
-
-    result = createRenderPass(&state->device, &renderPassInfo, &state->renderPass);
-    if(result != VK_SUCCESS) {
-        fprintf(stderr, "Failed to create render pass: %s.\n", string_VkResult(result));
-        exit(1);
-    }
 
     VkGraphicsPipelineCreateInfo pipelineInfo = {
         .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
@@ -591,10 +589,11 @@ void CreateGraphicsPipeline(VulkanState *state) {
         .pColorBlendState = &colorBlendState,
         .pDynamicState = &dynamicStateInfo,
         .layout = state->layout,
-        .renderPass = state->renderPass,
+        .renderPass = VK_NULL_HANDLE,
         .subpass = 0,
         .basePipelineHandle = VK_NULL_HANDLE,
         .basePipelineIndex = -1,
+        .pNext = &pipelineRendering
     };
     result = createGraphicsPipeline(&state->device, &pipelineInfo, &state->graphicsPipeline);
     if(result != VK_SUCCESS) {
