@@ -29,7 +29,7 @@ fi
 
 if [[ x"${RELEASE}" != "x" ]]; then
     # Release mode
-    CFLAGS+=" -O2 -funroll-loops -Werror"
+    CFLAGS+=" -DRELEASE -O2 -funroll-loops -Werror"
 else
     # Debug mode
     CFLAGS+=" -ggdb"

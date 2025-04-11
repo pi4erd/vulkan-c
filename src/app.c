@@ -1,5 +1,5 @@
 #include "app.h"
-#include "array.h"
+#include "arrays.h"
 #include "device_api.h"
 #include "engine.h"
 #include "mesh.h"
@@ -16,6 +16,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#define VK_KHR_VALIDATION_LAYER_NAME "VK_LAYER_KHRONOS_validation"
+#define VK_EXT_METAL_SURFACE_EXTENSION_NAME "VK_EXT_metal_surface"
+#define VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME "VK_KHR_portability_subset"
 
 #define FRAMES_IN_FLIGHT 2
 
@@ -64,8 +68,8 @@ void DestroyMesh(VulkanState *state, Mesh *mesh);
 Buffer CreateBufferGQueue(VulkanState *state, VkDeviceSize bufferSize, VkBufferUsageFlags usage, VkMemoryPropertyFlags memoryFlags);
 
 VulkanState *initVulkanState(Window *window, VkBool32 debugging) {
-    StringArray extensions = createStringArray(1000);
-    StringArray layers = createStringArray(1000);
+    StringArray extensions = StringArrayNew(1000);
+    StringArray layers = StringArrayNew(1000);
 
     VulkanState *state = calloc(1, sizeof(VulkanState));
 
@@ -76,7 +80,7 @@ VulkanState *initVulkanState(Window *window, VkBool32 debugging) {
     StringArrayAddElement(&extensions, VK_KHR_SURFACE_EXTENSION_NAME);
 
     if(debugging) {
-        StringArrayAddElement(&layers, "VK_LAYER_KHRONOS_validation");
+        StringArrayAddElement(&layers, VK_KHR_VALIDATION_LAYER_NAME);
         StringArrayAddElement(&extensions, VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
     }
 
@@ -85,17 +89,20 @@ VulkanState *initVulkanState(Window *window, VkBool32 debugging) {
 
 #ifdef __MACH__
     portability = VK_TRUE;
-    addStringToArray(&extensions, "VK_EXT_metal_surface");
 #else
     portability = VK_FALSE;
 #endif
 
     state->portability = portability;
 
+    if(portability) {
+        StringArrayAddElement(&extensions, VK_EXT_METAL_SURFACE_EXTENSION_NAME);
+    }
+
     result = createInstance(extensions, layers, portability, &state->instance);
 
-    destroyStringArray(&extensions);
-    destroyStringArray(&layers);
+    StringArrayDestroy(&extensions);
+    StringArrayDestroy(&layers);
 
     if(result != VK_SUCCESS) {
         fprintf(stderr, "Failed to create instance: %s.\n", string_VkResult(result));
@@ -117,17 +124,17 @@ VulkanState *initVulkanState(Window *window, VkBool32 debugging) {
         exit(1);
     }
 
-    StringArray deviceExtensions = createStringArray(1000);
-    StringArray deviceLayers = createStringArray(1000);
+    StringArray deviceExtensions = StringArrayNew(1000);
+    StringArray deviceLayers = StringArrayNew(1000);
 
     if(portability) {
-        StringArrayAddElement(&deviceExtensions, "VK_KHR_portability_subset");
+        StringArrayAddElement(&deviceExtensions, VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
     }
     StringArrayAddElement(&deviceExtensions, VK_KHR_SWAPCHAIN_EXTENSION_NAME);
     StringArrayAddElement(&deviceExtensions, VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME);
 
     if(debugging) {
-        StringArrayAddElement(&deviceLayers, "VK_LAYER_KHRONOS_validation");
+        StringArrayAddElement(&deviceLayers, VK_KHR_VALIDATION_LAYER_NAME);
     }
 
     // Add ray support
@@ -166,8 +173,8 @@ VulkanState *initVulkanState(Window *window, VkBool32 debugging) {
             &state->device
         );
     }
-    destroyStringArray(&deviceExtensions);
-    destroyStringArray(&deviceLayers);
+    StringArrayDestroy(&deviceExtensions);
+    StringArrayDestroy(&deviceLayers);
 
     if(result != VK_SUCCESS) {
         fprintf(stderr, "Failed to create device: %s.\n", string_VkResult(result));
@@ -644,7 +651,7 @@ void CreateRayTracingPipeline(VulkanState *state) {
         .pName = "main",
     };
 
-    PipelineStageArray array = createPipelineStageArray(100);
+    PipelineStageArray array = PipelineStageArrayNew(100);
     PipelineStageArrayAddElement(&array, raygenStage);
 
     VkDynamicState dynamicStates[] = {
@@ -674,7 +681,7 @@ void CreateRayTracingPipeline(VulkanState *state) {
         array,
         &state->rayTracingPipeline
     );
-    destroyPipelineStageArray(&array);
+    PipelineStageArrayDestroy(&array);
     destroyShaderModule(&state->device, raygen);
 
     if(result != VK_SUCCESS) {

@@ -43,7 +43,11 @@ void onKeyEvent(GLFWwindow *w, int key, int scancode, int action, int mode) {
 
 int main(void) {
     window = createWindow();
+#ifndef RELEASE
     state = initVulkanState(&window, VK_TRUE);
+#else
+    state = initVulkanState(&window, VK_FALSE);
+#endif
 
     glfwSetWindowSizeCallback(window.window, onResize);
     glfwSetKeyCallback(window.window, onKeyEvent);

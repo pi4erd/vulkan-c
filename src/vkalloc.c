@@ -10,7 +10,7 @@ uint32_t findMemoryType(uint32_t typeFilter, VkPhysicalDeviceMemoryProperties pr
 
 VkAlloc *createAllocator(Device *device) {
     VkAlloc *allocator = (VkAlloc*)calloc(1, sizeof(VkAlloc));
-    allocator->array = createDeviceMemoryArray(1000);
+    allocator->array = DeviceMemoryArrayNew(1000);
     allocator->device = device;
 
     return allocator;
@@ -21,7 +21,7 @@ void destroyAllocator(VkAlloc *alloc) {
         vkFreeMemory(alloc->device->device, alloc->array.elements[i], NULL);
     }
 
-    destroyDeviceMemoryArray(&alloc->array);
+    DeviceMemoryArrayDestroy(&alloc->array);
     free(alloc);
 }
 

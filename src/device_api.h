@@ -1,13 +1,11 @@
 #ifndef DEVICE_API_H_
 #define DEVICE_API_H_
 
-#include "array.h"
+#include "arrays.h"
 #include "window.h"
 
 #include <vulkan/vulkan.h>
 #include <vulkan/vulkan_core.h>
-
-DEFINE_ARRAY(PipelineStage, VkPipelineShaderStageCreateInfo)
 
 typedef struct {
     uint32_t graphics;

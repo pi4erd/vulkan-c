@@ -1,5 +1,4 @@
 #include "device_api.h"
-#include "array.h"
 #include "device_utils.h"
 #include "engine.h"
 

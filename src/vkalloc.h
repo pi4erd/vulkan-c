@@ -1,11 +1,9 @@
 #ifndef VKALLOC_H_
 #define VKALLOC_H_
 
-#include "array.h"
+#include "arrays.h"
 #include "device_api.h"
 #include <vulkan/vulkan.h>
-
-DEFINE_ARRAY(DeviceMemory, VkDeviceMemory)
 
 // Simple arena allocator: does not deallocate until destroyed (for now)
 typedef struct {
