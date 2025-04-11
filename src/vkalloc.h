@@ -29,10 +29,11 @@ void destroyAllocator(VkAlloc *alloc);
 
 VkDeviceAddress getBufferAddress(Device *device, Buffer *buffer);
 VkResult createBlas(
-    VkAlloc *device,
+    VkAlloc *alloc,
     VkDeviceSize size,
     AccelerationStructure *structure
 );
+void destroyAccelerationStructure(VkAlloc *alloc, AccelerationStructure *structure);
 
 VkResult allocateDeviceMemory(VkAlloc *alloc, VkMemoryRequirements reqs, VkMemoryPropertyFlags flags, VkDeviceMemory *memory);
 VkResult createAllocateBuffer(VkAlloc *alloc, VkBufferCreateInfo *bufferInfo, VkMemoryPropertyFlags flags, Buffer *buffer);

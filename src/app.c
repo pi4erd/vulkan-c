@@ -30,8 +30,6 @@ typedef struct VKSTATE {
     VkQueue presentQueue;
 
     Swapchain swapchain;
-    VkPipelineLayout layout;
-    VkPipeline graphicsPipeline;
     
     VkCommandPool commandPool;
 
@@ -40,6 +38,11 @@ typedef struct VKSTATE {
     VkFence *inFlightFences;
 
     VkAlloc *allocator;
+
+    VkPipelineLayout layout;
+    VkPipeline graphicsPipeline;
+    VkPipeline rayTracingPipeline;
+    AccelerationStructure blas;
     Mesh mesh;
 
     VkBool32 portability;
@@ -48,6 +51,7 @@ typedef struct VKSTATE {
 } VulkanState;
 
 void CreateGraphicsPipeline(VulkanState *state);
+void CreateRayTracingPipeline(VulkanState *state);
 void CopyBuffer(VulkanState *state, Buffer *dst, Buffer *src);
 Mesh CreateMesh(
     VulkanState *state,
@@ -133,9 +137,14 @@ VulkanState *initVulkanState(Window *window, VkBool32 debugging) {
 
     {
         // device creation
+        VkPhysicalDeviceAccelerationStructureFeaturesKHR accelStruc = {
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR,
+            .accelerationStructure = VK_TRUE,
+        };
         VkPhysicalDeviceRayTracingPipelineFeaturesKHR raytrace = {
             .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR,
             .rayTracingPipeline = VK_TRUE,
+            .pNext = &accelStruc,
         };
         VkPhysicalDeviceDynamicRenderingFeaturesKHR dynrendering = {
             .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES_KHR,
@@ -231,6 +240,14 @@ VulkanState *initVulkanState(Window *window, VkBool32 debugging) {
         indices, sizeof(indices) / sizeof(uint32_t)
     );
 
+    result = createBlas(state->allocator, state->mesh.vertexBuffer.memorySize, &state->blas);
+    if(result != VK_SUCCESS) {
+        fprintf(stderr, "Failed to create acceleration structure: %s.\n", string_VkResult(result));
+        exit(1);
+    }
+
+    CreateRayTracingPipeline(state);
+
     return state;
 }
 
@@ -238,6 +255,7 @@ void destroyVulkanState(VulkanState *vulkanState) {
     assert(waitIdle(&vulkanState->device) == VK_SUCCESS);
 
     DestroyMesh(vulkanState, &vulkanState->mesh);
+    destroyAccelerationStructure(vulkanState->allocator, &vulkanState->blas);
     destroyAllocator(vulkanState->allocator);
 
     for(size_t i = 0; i < FRAMES_IN_FLIGHT; i++) {
@@ -253,6 +271,7 @@ void destroyVulkanState(VulkanState *vulkanState) {
     destroyCommandPool(&vulkanState->device, vulkanState->commandPool);
     free(vulkanState->commandBuffers);
 
+    destroyPipeline(&vulkanState->device, vulkanState->rayTracingPipeline);
     destroyPipeline(&vulkanState->device, vulkanState->graphicsPipeline);
     destroyPipelineLayout(&vulkanState->device, vulkanState->layout);
 
@@ -459,7 +478,7 @@ void framebufferResized(VulkanState *vulkanState) {
 #include <main.vert.h>
 
 void CreateGraphicsPipeline(VulkanState *state) {
-    uint32_t result;
+    VkResult result;
 
     VkShaderModule vertex, fragment;
     result = createShaderModule(&state->device, (const uint32_t*)main_vert_h, sizeof(main_vert_h), &vertex);
@@ -603,6 +622,65 @@ void CreateGraphicsPipeline(VulkanState *state) {
 
     destroyShaderModule(&state->device, fragment);
     destroyShaderModule(&state->device, vertex);
+}
+
+#include <ray.rgen.h>
+
+void CreateRayTracingPipeline(VulkanState *state) {
+    VkResult result;
+
+    VkShaderModule raygen;
+    result = createShaderModule(
+        &state->device,
+        (const uint32_t*)ray_rgen_h,
+        sizeof(ray_rgen_h),
+        &raygen
+    );
+
+    VkPipelineShaderStageCreateInfo raygenStage = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+        .stage = VK_SHADER_STAGE_RAYGEN_BIT_KHR,
+        .module = raygen,
+        .pName = "main",
+    };
+
+    PipelineStageArray array = createPipelineStageArray(100);
+    PipelineStageArrayAddElement(&array, raygenStage);
+
+    VkDynamicState dynamicStates[] = {
+        VK_DYNAMIC_STATE_RAY_TRACING_PIPELINE_STACK_SIZE_KHR,
+    };
+
+    VkPipelineDynamicStateCreateInfo dynamicStateInfo = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+        .pDynamicStates = dynamicStates,
+        .dynamicStateCount = sizeof(dynamicStates) / sizeof(VkDynamicState),
+    };
+
+    VkRayTracingShaderGroupCreateInfoKHR shaderGroup = {
+        .sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR,
+        .generalShader = 0,
+        .anyHitShader = VK_SHADER_UNUSED_KHR,
+        .closestHitShader = VK_SHADER_UNUSED_KHR,
+        .intersectionShader = VK_SHADER_UNUSED_KHR,
+        .type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR,
+    };
+
+    result = createRayTracingPipelineKHR(
+        &state->device,
+        state->layout,
+        &dynamicStateInfo,
+        &shaderGroup,
+        array,
+        &state->rayTracingPipeline
+    );
+    destroyPipelineStageArray(&array);
+    destroyShaderModule(&state->device, raygen);
+
+    if(result != VK_SUCCESS) {
+        fprintf(stderr, "Failed to create ray tracing pipeline: %s.\n", string_VkResult(result));
+        exit(1);
+    }
 }
 
 void CopyBuffer(VulkanState *state, Buffer *dst, Buffer *src) {

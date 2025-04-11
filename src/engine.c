@@ -15,6 +15,28 @@
 VkBool32 checkInstanceExtensions(StringArray extensions);
 VkBool32 checkInstanceLayers(StringArray layers);
 
+PFN_vkVoidFunction getInstanceProcAddrChecked(VkInstance instance, const char *name) {
+    PFN_vkVoidFunction func = vkGetInstanceProcAddr(instance, name);
+
+    if(!func) {
+        fprintf(stderr, "Failed to find instance procedure: %s. May be unavailable in driver.\n", name);
+        exit(1);
+    }
+
+    return func;
+}
+
+PFN_vkVoidFunction getDeviceProcAddrChecked(VkDevice device, const char *name) {
+    PFN_vkVoidFunction func = vkGetDeviceProcAddr(device, name);
+
+    if(!func) {
+        fprintf(stderr, "Failed to find device procedure: %s. May be unavailable in driver.\n", name);
+        exit(1);
+    }
+
+    return func;
+}
+
 VkBool32 debugMessengerCallback(
     VkDebugUtilsMessageSeverityFlagsEXT severity,
     VkDebugUtilsMessageTypeFlagsEXT type,

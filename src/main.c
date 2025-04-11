@@ -11,6 +11,7 @@ static VulkanState *state;
 
 void drawFrame(void);
 void onResize(GLFWwindow *w, int width, int height);
+void onKeyEvent(GLFWwindow *w, int key, int scancode, int action, int mode);
 
 void drawFrame() {
     uint32_t imageIndex;
@@ -31,11 +32,21 @@ void onResize(GLFWwindow *w, int width, int height) {
     // recreateSwapChain(state, &window);
 }
 
+void onKeyEvent(GLFWwindow *w, int key, int scancode, int action, int mode) {
+    (void)scancode;
+    (void)mode;
+    
+    if(key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
+        glfwSetWindowShouldClose(w, GLFW_TRUE);
+    }
+}
+
 int main(void) {
     window = createWindow();
     state = initVulkanState(&window, VK_TRUE);
 
     glfwSetWindowSizeCallback(window.window, onResize);
+    glfwSetKeyCallback(window.window, onKeyEvent);
 
     while(!windowShouldClose(&window)) {
         pollEvents();

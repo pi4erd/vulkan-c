@@ -86,6 +86,11 @@ VkResult createBlas(
     return VK_SUCCESS;
 }
 
+void destroyAccelerationStructure(VkAlloc *alloc, AccelerationStructure *structure) {
+    destroyAccelerationStructureKHR(alloc->device, structure->structure);
+    destroyDeallocateBuffer(alloc, &structure->buffer);
+}
+
 VkResult allocateDeviceMemory(VkAlloc *alloc, VkMemoryRequirements reqs, VkMemoryPropertyFlags flags, VkDeviceMemory *memory) {
     uint32_t result;
 

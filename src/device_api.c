@@ -204,7 +204,7 @@ VkResult createRayTracingPipelineKHR(
         .maxPipelineRayRecursionDepth = 8,
         .pDynamicState = dynamicState,
     };
-    
+
     return VK_DEVICE_FUNC(vkCreateRayTracingPipelinesKHR, device->device)(
         device->device,
         VK_NULL_HANDLE,

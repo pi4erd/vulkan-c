@@ -8,8 +8,11 @@
 #include "window.h"
 #include "array.h"
 
-#define VK_INSTANCE_FUNC(F, instance) ((PFN_ ## F)vkGetInstanceProcAddr(instance, #F))
-#define VK_DEVICE_FUNC(F, device) ((PFN_ ## F)vkGetDeviceProcAddr(device, #F))
+#define VK_INSTANCE_FUNC(F, instance) ((PFN_ ## F)getInstanceProcAddrChecked(instance, #F))
+#define VK_DEVICE_FUNC(F, device) ((PFN_ ## F)getDeviceProcAddrChecked(device, #F))
+
+PFN_vkVoidFunction getInstanceProcAddrChecked(VkInstance instance, const char *name);
+PFN_vkVoidFunction getDeviceProcAddrChecked(VkDevice device, const char *name);
 
 VkBool32 debugMessengerCallback(
     VkDebugUtilsMessageSeverityFlagsEXT severity,
