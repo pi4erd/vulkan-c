@@ -19,21 +19,33 @@ export RESSHADER=$RESOURCEDIR/shader
 mkdir -p $BUILDDIR $BINDIR $OBJDIR $SHADERBIN
 
 # Main project settings
-CFLAGS="-std=c17 -I$RESINCLUDE -Wall -Wextra -Wpedantic"
-LDFLAGS="-lc -lvulkan -lglfw"
+CFLAGS=(
+    -std=c17 -I$RESINCLUDE
+    -Wall -Wextra -Wpedantic
+    $(pkg-config --cflags glfw3)
+    $(pkg-config --cflags vulkan)
+)
+LDFLAGS=(
+    -lc
+    $(pkg-config --libs glfw3)
+    $(pkg-config --libs vulkan)
+)
 
 if [[  x"${MACOS}" != "x" ]]; then
-    CFLAGS+=" -I/opt/homebrew/include -I/usr/local/include"
-    LDFLAGS+=" -L/opt/homebrew/lib -rpath /usr/local/lib"
+    CFLAGS+=(-I/opt/homebrew/include -I/usr/local/include)
+    LDFLAGS+=(-L/opt/homebrew/lib -rpath /usr/local/lib)
 fi
 
 if [[ x"${RELEASE}" != "x" ]]; then
     # Release mode
-    CFLAGS+=" -DRELEASE -O2 -funroll-loops -Werror"
+    CFLAGS+=(-DRELEASE -O2 -funroll-loops -Werror)
 else
     # Debug mode
-    CFLAGS+=" -ggdb"
+    CFLAGS+=(-ggdb)
 fi
+
+CFLAGS=${CFLAGS[@]}
+LDFLAGS=${LDFLAGS[@]}
 
 # Build auxilary projects
 (cd embedder; ./build.sh)
