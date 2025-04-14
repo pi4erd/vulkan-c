@@ -198,6 +198,14 @@ void transitionImageLayout(
     );
 }
 
+void getPhysicalDeviceProperties2(
+    VkInstance instance,
+    VkPhysicalDevice device,
+    VkPhysicalDeviceProperties2 *properties
+) {
+    VK_INSTANCE_FUNC(vkGetPhysicalDeviceProperties2, instance)(device, properties);
+}
+
 VkBool32 checkInstanceExtensions(StringArray extensions) {
     uint32_t extensionCount;
     uint32_t result;

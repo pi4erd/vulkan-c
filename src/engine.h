@@ -48,4 +48,10 @@ void transitionImageLayout(
     VkPipelineStageFlags dstStage
 );
 
+void getPhysicalDeviceProperties2(
+    VkInstance instance,
+    VkPhysicalDevice device,
+    VkPhysicalDeviceProperties2 *properties
+);
+
 #endif

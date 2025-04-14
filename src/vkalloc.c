@@ -33,65 +33,13 @@ VkDeviceAddress getBufferAddress(Device *device, Buffer *buffer) {
     return vkGetBufferDeviceAddress(device->device, &addressInfo);
 }
 
-VkResult createBlas(
+VkResult allocateDeviceMemory(
     VkAlloc *alloc,
-    VkDeviceSize size,
-    AccelerationStructure *structure
+    VkMemoryRequirements reqs,
+    VkMemoryPropertyFlags propertyFlags,
+    VkMemoryAllocateFlags allocateFlags,
+    VkDeviceMemory *memory
 ) {
-    VkBufferCreateInfo bufferInfo = {
-        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-        .pQueueFamilyIndices = &alloc->device->queueFamilies.graphics,
-        .queueFamilyIndexCount = 1,
-        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-        .size = size,
-        .usage = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR
-    };
-    VkResult result;
-    result = createAllocateBuffer(
-        alloc,
-        &bufferInfo,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-        &structure->buffer
-    );
-    if(result != VK_SUCCESS) {
-        fprintf(
-            stderr,
-            "Failed to allocate buffer for acceleration structure: %s.\n",
-            string_VkResult(result)
-        );
-        return result;
-    }
-
-    VkAccelerationStructureCreateInfoKHR info = {
-        .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR,
-        .buffer = structure->buffer.buffer,
-        .offset = 0,
-        .type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR,
-        .size = structure->buffer.memorySize,
-        .deviceAddress = 0,
-    };
-
-    result = createAccelerationStructureKHR(
-        alloc->device,
-        &info,
-        &structure->structure
-    );
-    if(result != VK_SUCCESS) {
-        fprintf(stderr, "Failed to create acceleration structure: %s.\n",
-            string_VkResult(result)
-        );
-        return result;
-    }
-
-    return VK_SUCCESS;
-}
-
-void destroyAccelerationStructure(VkAlloc *alloc, AccelerationStructure *structure) {
-    destroyAccelerationStructureKHR(alloc->device, structure->structure);
-    destroyDeallocateBuffer(alloc, &structure->buffer);
-}
-
-VkResult allocateDeviceMemory(VkAlloc *alloc, VkMemoryRequirements reqs, VkMemoryPropertyFlags flags, VkDeviceMemory *memory) {
     uint32_t result;
 
     VkPhysicalDeviceMemoryProperties props;
@@ -100,13 +48,18 @@ VkResult allocateDeviceMemory(VkAlloc *alloc, VkMemoryRequirements reqs, VkMemor
     uint32_t memoryType = findMemoryType(
         reqs.memoryTypeBits,
         props,
-        flags
+        propertyFlags
     );
 
+    VkMemoryAllocateFlagsInfo allocateFlagsInfo = {
+        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO,
+        .flags = allocateFlags,
+    };
     VkMemoryAllocateInfo allocInfo = {
         .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
         .allocationSize = reqs.size,
         .memoryTypeIndex = memoryType,
+        .pNext = &allocateFlagsInfo,
     };
 
     VkDeviceMemory mem;
@@ -123,7 +76,13 @@ VkResult allocateDeviceMemory(VkAlloc *alloc, VkMemoryRequirements reqs, VkMemor
     return VK_SUCCESS;
 }
 
-VkResult createAllocateBuffer(VkAlloc *alloc, VkBufferCreateInfo *bufferInfo, VkMemoryPropertyFlags flags, Buffer *buffer) {
+VkResult createAllocateBuffer(
+    VkAlloc *alloc,
+    VkBufferCreateInfo *bufferInfo,
+    VkMemoryPropertyFlags propertyFlags,
+    VkMemoryAllocateFlags allocateFlags,
+    Buffer *buffer
+) {
     VkBuffer buf;
     VkResult result;
     result = createBuffer(alloc->device, bufferInfo, &buf);
@@ -136,7 +95,7 @@ VkResult createAllocateBuffer(VkAlloc *alloc, VkBufferCreateInfo *bufferInfo, Vk
     VkMemoryRequirements reqs = getBufferMemoryRequirements(alloc->device, buf);
     VkDeviceMemory memory;
 
-    result = allocateDeviceMemory(alloc, reqs, flags, &memory);
+    result = allocateDeviceMemory(alloc, reqs, propertyFlags, allocateFlags, &memory);
     if(result != VK_SUCCESS) {
         fprintf(stderr, "Failed to allocate device memory: %s.\n", string_VkResult(result));
         return result;

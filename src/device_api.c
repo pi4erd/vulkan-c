@@ -1,4 +1,5 @@
 #include "device_api.h"
+#include "arrays.h"
 #include "device_utils.h"
 #include "engine.h"
 
@@ -168,6 +169,14 @@ void destroyFence(Device *device, VkFence fence) {
     vkDestroyFence(device->device, fence, NULL);
 }
 
+VkResult createDescriptorSetLayout(Device *device, VkDescriptorSetLayoutCreateInfo *info, VkDescriptorSetLayout *layout) {
+    return vkCreateDescriptorSetLayout(device->device, info, NULL, layout);
+}
+
+void destroyDescriptorSetLayout(Device *device, VkDescriptorSetLayout layout) {
+    vkDestroyDescriptorSetLayout(device->device, layout, NULL);
+}
+
 VkResult createAccelerationStructureKHR(
     Device *device,
     VkAccelerationStructureCreateInfoKHR *structureInfo,
@@ -189,18 +198,19 @@ VkResult createRayTracingPipelineKHR(
     Device *device,
     VkPipelineLayout layout,
     VkPipelineDynamicStateCreateInfo *dynamicState,
-    VkRayTracingShaderGroupCreateInfoKHR *groupInfo,
+    VkRayTracingShaderGroupCreateInfoKHR *groupInfos,
+    uint32_t groupCount,
     PipelineStageArray stages,
     VkPipeline *pipeline
 ) {
     VkRayTracingPipelineCreateInfoKHR info = {
         .sType = VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR,
         .layout = layout,
-        .pGroups = groupInfo,
-        .groupCount = 1,
+        .pGroups = groupInfos,
+        .groupCount = groupCount,
         .pStages = stages.elements,
         .stageCount = stages.elementCount,
-        .maxPipelineRayRecursionDepth = 8,
+        .maxPipelineRayRecursionDepth = 4,
         .pDynamicState = dynamicState,
     };
 
@@ -376,6 +386,7 @@ VkMemoryRequirements getBufferMemoryRequirements(Device *device, VkBuffer buffer
 
 void getAccelerationStructureBuildSizesKHR(
     Device *device,
+    UInt32Array primitiveCounts,
     VkAccelerationStructureBuildGeometryInfoKHR *geometry,
     VkAccelerationStructureBuildSizesInfoKHR *buildSizes
 ) {
@@ -383,8 +394,27 @@ void getAccelerationStructureBuildSizesKHR(
         device->device,
         VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
         geometry,
-        NULL,
+        primitiveCounts.elements,
         buildSizes
+    );
+}
+
+VkResult getRayTracingShaderGroupHandlesKHR(
+    Device *device,
+    VkPipeline pipeline,
+    uint32_t firstGroup,
+    uint32_t groupCount,
+    size_t dataSize,
+    void *data
+) {
+    // TODO: Change VK_DEVICE_FUNC to pointer in DeviceFuncs struct
+    return VK_DEVICE_FUNC(vkGetRayTracingShaderGroupHandlesKHR, device->device)(
+        device->device,
+        pipeline,
+        firstGroup,
+        groupCount,
+        dataSize,
+        data
     );
 }
 

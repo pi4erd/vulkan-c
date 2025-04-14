@@ -23,6 +23,8 @@ typedef struct {
     Vector3f color;
 } Vertex;
 
+typedef Vector3f RtVertex;
+
 typedef struct {
     VkVertexInputAttributeDescription attributes[2];
     VkVertexInputBindingDescription bindings[1];

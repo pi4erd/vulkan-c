@@ -7,6 +7,7 @@
 
 DEFINE_ARRAY(String, const char *)
 DEFINE_ARRAY(DeviceMemory, VkDeviceMemory)
+DEFINE_ARRAY(UInt32, uint32_t)
 DEFINE_ARRAY(PipelineStage, VkPipelineShaderStageCreateInfo)
 DEFINE_ARRAY(ASGeometryBuildInfo, VkAccelerationStructureBuildGeometryInfoKHR)
 DEFINE_ARRAY(ASBuildRangeInfo, VkAccelerationStructureBuildRangeInfoKHR)

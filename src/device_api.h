@@ -54,6 +54,8 @@ VkResult createSemaphore(Device *device, VkSemaphore *semaphore);
 void destroySemaphore(Device *device, VkSemaphore semaphore);
 VkResult createFence(Device *device, VkBool32 signaled, VkFence *fence);
 void destroyFence(Device *device, VkFence fence);
+VkResult createDescriptorSetLayout(Device *device, VkDescriptorSetLayoutCreateInfo *info, VkDescriptorSetLayout *layout);
+void destroyDescriptorSetLayout(Device *device, VkDescriptorSetLayout layout);
 
 VkResult createBuffer(Device *device, VkBufferCreateInfo *bufferInfo, VkBuffer *buffer);
 void destroyBuffer(Device *device, VkBuffer buffer);
@@ -107,7 +109,8 @@ VkResult createRayTracingPipelineKHR(
     Device *device,
     VkPipelineLayout layout,
     VkPipelineDynamicStateCreateInfo *dynamicState,
-    VkRayTracingShaderGroupCreateInfoKHR *groupInfo,
+    VkRayTracingShaderGroupCreateInfoKHR *groupInfos,
+    uint32_t groupCount,
     PipelineStageArray stages,
     VkPipeline *pipeline
 );
@@ -118,8 +121,17 @@ VkResult buildAccelerationStructuresKHR(
 );
 void getAccelerationStructureBuildSizesKHR(
     Device *device,
+    UInt32Array primitiveCounts,
     VkAccelerationStructureBuildGeometryInfoKHR *geometry,
     VkAccelerationStructureBuildSizesInfoKHR *buildSizes
+);
+VkResult getRayTracingShaderGroupHandlesKHR(
+    Device *device,
+    VkPipeline pipeline,
+    uint32_t firstGroup,
+    uint32_t groupCount,
+    size_t dataSize,
+    void *data
 );
 
 void cmdBuildAccelerationStructuresKHR(
