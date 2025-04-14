@@ -360,10 +360,32 @@ void cmdCopyBuffer(VkCommandBuffer buffer, VkBuffer src, VkBuffer dst, uint32_t 
     vkCmdCopyBuffer(buffer, src, dst, regionCount, regions);
 }
 
+VkDeviceAddress getBufferAddressKHR(Device *device, VkBuffer buffer) {
+    VkBufferDeviceAddressInfo addressInfo = {
+        .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
+        .buffer = buffer,
+    };
+    return VK_DEVICE_FUNC(vkGetBufferDeviceAddressKHR, device->device)(device->device, &addressInfo);
+}
+
 VkMemoryRequirements getBufferMemoryRequirements(Device *device, VkBuffer buffer) {
     VkMemoryRequirements reqs;
     vkGetBufferMemoryRequirements(device->device, buffer, &reqs);
     return reqs;
+}
+
+void getAccelerationStructureBuildSizesKHR(
+    Device *device,
+    VkAccelerationStructureBuildGeometryInfoKHR *geometry,
+    VkAccelerationStructureBuildSizesInfoKHR *buildSizes
+) {
+    VK_DEVICE_FUNC(vkGetAccelerationStructureBuildSizesKHR, device->device)(
+        device->device,
+        VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
+        geometry,
+        NULL,
+        buildSizes
+    );
 }
 
 VkPhysicalDeviceMemoryProperties getPhysicalDeviceMemoryProperties(Device *device) {
@@ -402,6 +424,41 @@ void cmdBeginRenderingKHR(Device *device, VkCommandBuffer buffer, VkRenderingInf
 
 void cmdEndRenderingKHR(Device *device, VkCommandBuffer buffer) {
     VK_DEVICE_FUNC(vkCmdEndRenderingKHR, device->device)(buffer);
+}
+
+VkResult buildAccelerationStructuresKHR(
+    Device *device,
+    ASGeometryBuildInfoArray geometryInfos,
+    ASBuildRangeInfoArray rangeInfos
+) {
+    const VkAccelerationStructureBuildRangeInfoKHR *ranges = rangeInfos.elements;
+    
+    VkResult result;
+    result = VK_DEVICE_FUNC(vkBuildAccelerationStructuresKHR, device->device)(
+        device->device,
+        VK_NULL_HANDLE,
+        geometryInfos.elementCount,
+        geometryInfos.elements,
+        &ranges
+    );
+
+    return result;
+}
+
+void cmdBuildAccelerationStructuresKHR(
+    Device *device,
+    VkCommandBuffer commandBuffer,
+    ASGeometryBuildInfoArray geometryInfos,
+    ASBuildRangeInfoArray rangeInfos
+) {
+    const VkAccelerationStructureBuildRangeInfoKHR *ranges = rangeInfos.elements;
+    
+    VK_DEVICE_FUNC(vkCmdBuildAccelerationStructuresKHR, device->device)(
+        commandBuffer,
+        geometryInfos.elementCount,
+        geometryInfos.elements,
+        &ranges
+    );
 }
 
 VkBool32 getQueueFamilies(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface, QueueFamilyIndices *queueFamilies) {

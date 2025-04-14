@@ -96,6 +96,7 @@ VkResult queuePresent(VkQueue queue, VkPresentInfoKHR *presentInfo);
 VkResult queueWaitIdle(VkQueue queue);
 
 // KHR
+VkDeviceAddress getBufferAddressKHR(Device *device, VkBuffer buffer);
 VkResult createAccelerationStructureKHR(
     Device *device,
     VkAccelerationStructureCreateInfoKHR *structureInfo,
@@ -110,7 +111,23 @@ VkResult createRayTracingPipelineKHR(
     PipelineStageArray stages,
     VkPipeline *pipeline
 );
+VkResult buildAccelerationStructuresKHR(
+    Device *device,
+    ASGeometryBuildInfoArray geometryInfos,
+    ASBuildRangeInfoArray rangeInfos
+);
+void getAccelerationStructureBuildSizesKHR(
+    Device *device,
+    VkAccelerationStructureBuildGeometryInfoKHR *geometry,
+    VkAccelerationStructureBuildSizesInfoKHR *buildSizes
+);
 
+void cmdBuildAccelerationStructuresKHR(
+    Device *device,
+    VkCommandBuffer commandBuffer,
+    ASGeometryBuildInfoArray geometryInfos,
+    ASBuildRangeInfoArray rangeInfos
+);
 void cmdBeginRenderingKHR(Device *device, VkCommandBuffer buffer, VkRenderingInfoKHR *info);
 void cmdEndRenderingKHR(Device *device, VkCommandBuffer buffer);
 
