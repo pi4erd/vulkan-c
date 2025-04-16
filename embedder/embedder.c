@@ -16,6 +16,14 @@ void printUsage(const char *program) {
 size_t formatBytes(char *buffer, size_t bufferSize, const char *filename, const char *bytes, size_t byteCount) {
     size_t filename_len = strlen(filename);
 
+    const char *lastSlash = filename;
+    for(size_t i = 0; i < filename_len; i++) {
+        if(filename[i] == '/') lastSlash = filename + i;
+    }
+
+    filename = lastSlash + 1;
+    filename_len = strlen(filename);
+
     char *filename_lower = malloc(filename_len + 1);
     char *filename_upper = malloc(filename_len + 1);
     char *bytearray_str = (char*)malloc(6 * byteCount + 1);

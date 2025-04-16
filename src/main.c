@@ -13,7 +13,7 @@ void drawFrame(void);
 void onResize(GLFWwindow *w, int width, int height);
 void onKeyEvent(GLFWwindow *w, int key, int scancode, int action, int mode);
 
-void drawFrame() {
+void drawFrame(void) {
     uint32_t imageIndex;
     if(getImage(state, &window, &imageIndex) == VK_FALSE) {
         return;
